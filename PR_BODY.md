@@ -1,49 +1,57 @@
 ## Task
 
-**Task ID:** P0-06
-**Title:** Runtime guardrails and backoff ladder
-**Goal:** Detect degeneration and apply safe backoff transitions within a single request.
+**Task ID:** P1-02
+**Title:** Reconciler canonical run-state cleanup
+**Goal:** Make reconciliation collapse duplicate task runs into a canonical merged state so stale ready-for-review records do not linger.
 
 ## Changes
 
-### `services/steering-inference-api/src/guardrails/detector.ts`
-- Detects three degeneration signals: **repetition loops** (n-gram frequency), **language shift** (non-Latin character ratio), **entropy collapse** (unique token ratio)
-- Configurable thresholds via `DetectorConfig`
+### `scripts/lib/state.mjs`
+- Added `canonicalizeRuns(runs)` — pure function that collapses duplicate runs per task into a single canonical merged entry. Stale `ready_for_review` and `dispatched` runs are removed when a merged run exists. Prefers merged PR metadata for `merged_at`. Preserves unrelated task history (running, failed, etc.) untouched.
+- Added `writeCanonicalizedRuns(stateDir)` — reads runs from disk, canonicalizes, and writes back.
 
-### `services/steering-inference-api/src/guardrails/backoff-policy.ts`
-- Implements backoff ladder: `strong → medium → low → single-layer → off (no-steering)`
-- Scoped to active request context only — no global state mutation
-- Bounded by `maxBackoffSteps` — no infinite retry loops
-- Emits `TelemetryEvent` for each backoff step
-- `buildPostBackoffMetadata()` produces run metadata with active layers, preset, multiplier, and guardrail event trail
+### `scripts/agent-reconciler.mjs`
+- Calls `writeCanonicalizedRuns()` at the end of each reconciliation loop, after merged PR and dead worker reconciliation.
 
-### `services/steering-inference-api/tests/guardrails.test.ts`
-- 19 tests covering all detector signals, full/partial backoff sequences, telemetry emission, max-step bounds, and post-backoff metadata
+### `scripts/agent-doctor.mjs`
+- Applies `canonicalizeRuns()` to runs before computing status summary, so the doctor report reflects the canonical state (ready_for_review=0 for fully merged queues).
+
+### `scripts/tests/reconciler-run-state.test.mjs`
+- 9 tests covering: duplicate collapse, stale ready_for_review conversion, fully merged queue reporting, idempotency, unrelated entry preservation, merged_at metadata preference, dispatched run conversion, no-merged preservation, and empty input.
 
 ## Verify Command Output
 
 ```
-pnpm test --filter steering-guardrails
+node --test scripts/tests/reconciler-run-state.test.mjs
 
- ✓ tests/guardrails.test.ts (19 tests) 5ms
-
- Test Files  1 passed (1)
-      Tests  19 passed (19)
-   Duration  416ms
+▶ canonicalizeRuns
+  ✔ collapses duplicate merged runs into one canonical entry per task
+  ✔ converts stale ready_for_review to merged when a merged run exists
+  ✔ reports ready_for_review as zero for fully merged queues
+  ✔ is idempotent across repeated runs
+  ✔ does not mutate unrelated task history entries
+  ✔ prefers merged PR metadata when normalizing merged_at
+  ✔ converts stale dispatched runs to merged when a merged run exists
+  ✔ preserves tasks with no merged runs unchanged
+  ✔ handles empty runs array
+✔ canonicalizeRuns
+ℹ tests 9
+ℹ pass 9
+ℹ fail 0
 ```
 
 ## Definition of Done
 
-- [x] Guardrail fixtures trigger expected backoff sequence
-- [x] Final metadata reflects post-backoff active layers
-- [x] Fallback to no-steering mode is supported
+- [x] Only one latest canonical run status remains for each merged task.
+- [x] Doctor summary reports ready_for_review as zero after reconciliation for fully merged queues.
+- [x] Reconciler tests cover duplicate-run normalization behavior.
 
 ## Constraints
 
-- [x] Backoff applies only to active request context
-- [x] No infinite retry loops (bounded by maxBackoffSteps)
-- [x] Emit telemetry for each backoff step
+- [x] Reconciliation is idempotent across repeated runs.
+- [x] Unrelated task history entries are not mutated.
+- [x] Merged PR metadata is preferred when normalizing status and merged_at fields.
 
 ## Rollback Note
 
-If guardrails are overly aggressive, revert to monitor-only mode while preserving telemetry emission.
+If canonicalization causes incorrect history, disable normalization writes and run reconciler in read-only mode until state migration rules are corrected.

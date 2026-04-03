@@ -10,6 +10,7 @@ import {
   releaseTaskLock,
   upsertRun,
   isPidAlive,
+  writeCanonicalizedRuns,
 } from "./lib/state.mjs";
 
 function parseArgs(argv) {
@@ -245,6 +246,7 @@ async function main() {
   while (true) {
     await reconcileMergedPrs(args, token, logDir, langsmithProject, stateDir);
     await reconcileDeadWorkers(args, token, logDir, langsmithProject, stateDir);
+    await writeCanonicalizedRuns(stateDir);
 
     if (args.once) {
       break;
