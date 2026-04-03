@@ -1,103 +1,115 @@
 ## Task
 
-**Task ID:** P3-03
-**Title:** Ramp-parity methodology report and acceptance gates
-**Goal:** Produce a reproducible Gemma 3 parity report that codifies acceptance criteria for matching Ramp-style steering behavior.
+**Task ID:** P3-06
+**Title:** Gemma 4 transfer protocol (post-parity)
+**Goal:** Define a controlled Gemma 4 transfer protocol that reuses Gemma 3 methodology artifacts without changing defaults until transfer gates pass.
 
 ## Changes
 
 ### New files
 
-- **`artifacts/sweeps/gemma3-ramp-parity-report.md`** — Full parity report documenting where Gemma 3 behavior matches or diverges from Ramp findings. Includes Stage B single-layer sweep results, Stage C multi-layer calibration results, side-by-side comparison tables, and methodology decision.
-- **`artifacts/sweeps/gemma3-acceptance-gates.json`** — Machine-readable acceptance gate artifact with pass/fail status, rationale, thresholds, and observed values for coherence (≥ 0.80), degeneration (≤ 0.03), and adherence (≥ 0.60). Includes five Ramp parity checks, divergence documentation, and methodology decision with Gemma 4 transfer conditions.
-- **`jobs/sweeps/tests/gemma3-parity-gates.test.ts`** — 39 tests validating acceptance gate structure, threshold values, Ramp parity checks, methodology decision, cross-artifact consistency, divergence documentation, and parity report content.
+- **`artifacts/sweeps/gemma4-transfer-gates.json`** — Machine-readable transfer gate artifact encoding pass/fail thresholds and decision logic. Thresholds are at least as strict as Gemma 3 parity acceptance gates (coherence ≥ 0.80, degeneration ≤ 0.03, adherence ≥ 0.60, language stability ≥ 0.99, correctness ≥ 0.85). Includes rollback policy, experimental tagging, and decision logic.
+- **`artifacts/sweeps/gemma4-transfer-checklist.md`** — Transfer checklist defining exact prerequisites before running Gemma 4 sweeps: Gemma 3 parity gates pass, artifacts available, transfer gates defined, baseline established, experimental tagging confirmed, rollback path verified.
+- **`jobs/sweeps/gemma4-transfer-protocol.ts`** — Transfer protocol implementation with gate evaluation logic, prerequisite validation, artifact loaders, and CLI entry point. Exports `evaluateTransferGate`, `evaluateAllTransferGates`, `checkPrerequisites`, `loadTransferGates`, `loadGemma3AcceptanceGates`.
+- **`jobs/sweeps/tests/gemma4-transfer-protocol.test.ts`** — 47 tests across 9 suites validating artifact existence, gate structure, threshold strictness, gate evaluation logic, overall evaluation (proceed/rollback), fallback-to-Gemma-3 behavior, prerequisite checks, tagging constraints, and checklist content.
 
-### Modified files
+## Constraints satisfied
 
-- **`model-and-layers.md`** — Added §13 "Gemma 3 Ramp-parity methodology decision" documenting acceptance gate results, parity status, Gemma 4 transfer readiness conditions, and artifact trail.
-
-### Generated artifacts (gitignored, produced at runtime)
-
-- **`artifacts/sweeps/gemma3-stage-b-parity.json`** — Stage B single-layer sweep data (228 configs, 8 hard-gate passers).
-- **`artifacts/sweeps/gemma3-stage-c-parity.json`** — Stage C multi-layer calibration data (27 combos, 18 passers, 3 candidates).
-- **`artifacts/sweeps/gemma3-preset-calibration.json`** — Preset calibration table.
+1. **Gemma 4 transfer runs tagged experimental and non-default** — Transfer gates artifact sets `tagging.gemma4_run_tag = "experimental"` and `tagging.gemma4_is_default = false`. All evaluation results enforce these tags.
+2. **Transfer gate thresholds at least as strict as Gemma 3** — Coherence ≥ 0.80 (Gemma 3: 0.80), degeneration ≤ 0.03 (Gemma 3: 0.03), adherence ≥ 0.60 (Gemma 3: 0.60).
+3. **Rollback-to-Gemma-3 path** — Rollback policy triggers on any gate failure: stop Gemma 4 experiments, continue with Gemma 3 calibrated profiles as sole default.
 
 ## Verify Command Output
 
 ```
-$ node --test jobs/sweeps/tests/gemma3-parity-gates.test.ts
+$ node --test jobs/sweeps/tests/gemma4-transfer-protocol.test.ts
 
-▶ Gemma 3 Parity Gates — Artifact existence
-  ✔ acceptance gates JSON artifact exists
-  ✔ parity report markdown artifact exists
-  ✔ Stage B sweep artifact exists
-  ✔ Stage C sweep artifact exists
-✔ Gemma 3 Parity Gates — Artifact existence
+▶ Gemma 4 Transfer Protocol — Artifact existence
+  ✔ transfer gates JSON artifact exists
+  ✔ transfer checklist markdown exists
+  ✔ transfer gates JSON is valid and parseable
+  ✔ Gemma 3 acceptance gates artifact exists (dependency)
+✔ Gemma 4 Transfer Protocol — Artifact existence
 
-▶ Gemma 3 Parity Gates — Acceptance gate structure
-  ✔ acceptance gates JSON is valid and parseable
-  ✔ acceptance gates include coherence gate
-  ✔ acceptance gates include degeneration gate
-  ✔ acceptance gates include adherence gate
-✔ Gemma 3 Parity Gates — Acceptance gate structure
+▶ Gemma 4 Transfer Protocol — Gate structure
+  ✔ transfer gates include coherence gate
+  ✔ transfer gates include degeneration gate
+  ✔ transfer gates include adherence gate
+  ✔ transfer gates include language stability gate
+  ✔ transfer gates include correctness gate
+  ✔ each gate records gemma3_threshold for traceability
+✔ Gemma 4 Transfer Protocol — Gate structure
 
-▶ Gemma 3 Parity Gates — Threshold validation
-  ✔ coherence threshold is reasonable (>= 0.70)
-  ✔ degeneration threshold is strict (<= 0.05)
-  ✔ adherence threshold requires meaningful lift (>= 0.50)
-  ✔ coherence observed values are within valid range [0, 1]
-  ✔ degeneration best observed is non-negative
-✔ Gemma 3 Parity Gates — Threshold validation
+▶ Gemma 4 Transfer Protocol — Threshold strictness
+  ✔ coherence threshold is at least as strict as Gemma 3 (>= 0.80)
+  ✔ degeneration threshold is at least as strict as Gemma 3 (<= 0.03)
+  ✔ adherence threshold is at least as strict as Gemma 3 (>= 0.60)
+  ✔ language stability threshold is at least 0.99
+✔ Gemma 4 Transfer Protocol — Threshold strictness
 
-▶ Gemma 3 Parity Gates — Ramp parity checks
-  ✔ includes layer 41 best single-layer check
-  ✔ includes sparse global outperforms dense check
-  ✔ includes degeneration cliffs detected check
-  ✔ includes default layer set match check
-  ✔ includes no language reversion check
-  ✔ all parity checks reference Ramp claims
-✔ Gemma 3 Parity Gates — Ramp parity checks
+▶ Gemma 4 Transfer Protocol — Gate evaluation
+  ✔ evaluateTransferGate passes a gte gate when value meets threshold
+  ✔ evaluateTransferGate fails a gte gate when value is below threshold
+  ✔ evaluateTransferGate passes a lte gate when value is below threshold
+  ✔ evaluateTransferGate fails a lte gate when value exceeds threshold
+  ✔ evaluateTransferGate fails closed on missing metric
+✔ Gemma 4 Transfer Protocol — Gate evaluation
 
-▶ Gemma 3 Parity Gates — Methodology decision
-  ✔ methodology decision is present
-  ✔ methodology decision includes rollback note
-  ✔ Gemma 4 transfer not proposed if any gate fails
-  ✔ Gemma 4 transfer only proposed when all gates pass
-  ✔ methodology decision lists conditions for Gemma 4 transfer
-✔ Gemma 3 Parity Gates — Methodology decision
+▶ Gemma 4 Transfer Protocol — Overall evaluation
+  ✔ evaluateAllTransferGates returns proceed when all gates pass
+  ✔ evaluateAllTransferGates returns rollback when any gate fails
+  ✔ rollback decision includes rollback action
+  ✔ single gate failure triggers rollback even if others pass
+  ✔ gemma4 is always tagged experimental in evaluation results
+✔ Gemma 4 Transfer Protocol — Overall evaluation
 
-▶ Gemma 3 Parity Gates — Cross-artifact consistency
-  ✔ acceptance gates reference Stage B artifact
-  ✔ acceptance gates reference Stage C artifact
-  ✔ acceptance gates reference Ramp post
-  ✔ Stage B result confirms layer 41 in top candidates
-  ✔ Stage B result confirms sparse global outperforms dense
-  ✔ Stage B result confirms degeneration cliff detected
-  ✔ Stage C result references Stage B
-  ✔ Stage C result has candidates with coherence above gate threshold
-  ✔ Stage C result has candidates with degeneration below gate threshold
-✔ Gemma 3 Parity Gates — Cross-artifact consistency
+▶ Gemma 4 Transfer Protocol — Fallback to Gemma 3
+  ✔ rollback policy specifies gemma3 as default on rollback
+  ✔ rollback policy specifies gemma4 as experimental on rollback
+  ✔ rollback policy action mentions stopping Gemma 4 experiments
+  ✔ rollback policy action mentions continuing with Gemma 3
+  ✔ failing coherence triggers rollback with correct gate detail
+  ✔ failing degeneration triggers rollback with correct gate detail
+  ✔ failing adherence triggers rollback with correct gate detail
+✔ Gemma 4 Transfer Protocol — Fallback to Gemma 3
 
-▶ Gemma 3 Parity Gates — Divergence documentation
-  ✔ acceptance gates document divergences from Ramp findings
-  ✔ each divergence has finding, severity, and explanation
-✔ Gemma 3 Parity Gates — Divergence documentation
+▶ Gemma 4 Transfer Protocol — Prerequisite checks
+  ✔ checkPrerequisites passes with real Gemma 3 gates and transfer gates
+  ✔ checkPrerequisites fails when Gemma 3 parity status is not pass
+  ✔ checkPrerequisites fails when gemma4_transfer_ready is false
+  ✔ checkPrerequisites validates experimental tagging
+  ✔ checkPrerequisites validates gemma4 is not default
+  ✔ checkPrerequisites validates rollback policy exists
+✔ Gemma 4 Transfer Protocol — Prerequisite checks
 
-▶ Gemma 3 Parity Gates — Parity report content
-  ✔ parity report references Ramp findings
-  ✔ parity report documents acceptance gates
-  ✔ parity report includes methodology decision
-  ✔ parity report includes coherence, degeneration, and adherence analysis
-✔ Gemma 3 Parity Gates — Parity report content
+▶ Gemma 4 Transfer Protocol — Tagging constraints
+  ✔ transfer gates artifact marks gemma4 as experimental
+  ✔ transfer gates artifact marks gemma4 as non-default
+  ✔ decision logic references rollback on failure
+  ✔ decision logic requires ALL gates to pass
+✔ Gemma 4 Transfer Protocol — Tagging constraints
 
-ℹ tests 39
-ℹ suites 8
-ℹ pass 39
+▶ Gemma 4 Transfer Protocol — Transfer checklist
+  ✔ checklist mentions Gemma 3 parity gates as prerequisite
+  ✔ checklist mentions experimental tagging
+  ✔ checklist mentions rollback path
+  ✔ checklist defines prerequisites section
+  ✔ checklist references gemma3-acceptance-gates.json
+  ✔ checklist includes threshold values for all gate metrics
+✔ Gemma 4 Transfer Protocol — Transfer checklist
+
+ℹ tests 47
+ℹ suites 9
+ℹ pass 47
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
-ℹ duration_ms 146.93ms
+ℹ duration_ms 138.54ms
 ```
+
+## Rollback Note
+
+If Gemma 4 transfer signals regressions, stop transfer experiments and continue with Gemma 3 calibrated profiles as the sole default.
 
 ```
 $ pnpm verify
