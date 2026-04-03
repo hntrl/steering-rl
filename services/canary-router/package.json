@@ -1,5 +1,5 @@
 {
-  "name": "@steering-rl/rollout",
+  "name": "canary-router",
   "private": true,
   "version": "0.0.1",
   "type": "module",

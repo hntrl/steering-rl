@@ -1,80 +1,89 @@
 ## Task
 
-**Task ID:** P2-06
-**Title:** Nightly promotion pipeline and canary handoff
-**Goal:** Automate end-to-end nightly promotion flow from trace ingestion through Stage D decision output and canary configuration handoff.
+**Task ID:** P3-01
+**Title:** Live canary rollout controller
+**Goal:** Promote challenger profiles with live traffic phases and strict automatic rollback policies using production metrics.
 
 ## Changes
 
 ### New files
 
-- **`jobs/nightly/promote.ts`** — End-to-end nightly promotion pipeline. Orchestrates dataset mining (Stage A → B → C), experiment scoring (Stage D champion-challenger bake-off), canary handoff with rollback payload, and release artifact generation. Supports `--dry-run` mode with no production mutations. Fails when required evidence artifacts are missing or stale.
-- **`jobs/nightly/tests/promote.test.ts`** — 16 tests covering config construction, evidence validation, dataset mining, experiment scoring, canary handoff (including rollback payload), release artifact completeness, full dry-run pipeline execution, and reproducibility.
-- **`artifacts/releases/README.md`** — Documents the release artifact format including decision summary, canary handoff, rollback payload, and evidence links.
+- **`services/canary-router/src/controller.ts`** — `CanaryController` class that orchestrates phased traffic rollout (10% → 50% → 100%) with automatic rollback, kill switch, runtime config updates (no redeploy), freeze mode, and machine-readable event emission for all lifecycle actions.
+- **`services/canary-router/tests/controller.test.ts`** — 35 unit tests covering phase progression, auto-advance, rollback on degenerate_rate/p95_latency_ms/error_rate breaches, kill switch, runtime config, freeze/unfreeze, event listener management, and full lifecycle integration.
+- **`services/canary-router/tests/live-rollout-simulation.test.ts`** — 9 simulation tests validating traffic distribution per phase, rollback decision latency SLA (p95 < 5ms under 500-sample load), automatic rollback behavior, kill switch routing, and complete event audit trail.
 
 ### Modified files
 
-- **`package.json`** — Added `promote:nightly` script.
-- **`README.md`** — Added nightly promotion pipeline section with run instructions, dry-run mode, pipeline stages, and rollback note.
+- **`services/canary-router/src/index.ts`** — Added controller exports (`CanaryController`, `CanaryControllerConfig`, `ControllerEvent`, etc.).
+- **`services/canary-router/tests/canary-simulation.ts`** — Extended simulation with 3 new controller scenarios (auto-advance lifecycle, rollback latency SLA, runtime config update).
+- **`services/canary-router/package.json`** — Updated package name to `canary-router` to match verify filter.
+- **`package.json`** — Updated `canary:simulation` script filter to match new package name.
+- **`README.md`** — Added Live Canary Rollout Controller documentation section.
 
 ## Verify Command Output
 
 ```
-$ pnpm run promote:nightly -- --dry-run
+$ pnpm test --filter canary-router
 
-[dry-run] === Nightly Promotion Pipeline ===
+ ✓ tests/controller.test.ts (35 tests) 6ms
+ ✓ tests/canary-router.test.ts (31 tests) 12ms
+ ✓ tests/live-rollout-simulation.test.ts (9 tests) 26ms
 
-[dry-run] Validating evidence artifacts...
-[nightly] Step 1: Dataset mining — running Stage A baseline...
-[nightly]   Stage A: coherence=0.9115, correctness=0.8855
-[nightly] Step 2: Single-layer sweep — running Stage B...
-[nightly]   Stage B: 6 candidates
-[nightly] Step 3: Multi-layer calibration — running Stage C...
-[nightly]   Stage C: 1 multi-layer candidates
-[nightly] Step 4: Champion-challenger bake-off — running Stage D...
-[nightly]   Stage D: 0 promoted, 1 held, 0 failed gates
-[dry-run] Skipping Stage D artifact write.
-[dry-run] Step 5: Building canary handoff...
-[nightly] No challenger promoted — skipping canary handoff.
-[dry-run] Step 6: Building release artifact...
-[dry-run] Skipping release artifact write.
+ Test Files  3 passed (3)
+      Tests  75 passed (75)
 
-[dry-run] === Pipeline Summary ===
-[dry-run]   Release: release-nightly-20260403
-[dry-run]   Total challengers: 1
-[dry-run]   Promoted: 0
-[dry-run]   Held: 1
-[dry-run]   Failed gates: 0
-[dry-run]   Promoted profile: none
-[dry-run]   Dry run: true
-[dry-run] Pipeline validation complete — no production mutations performed.
+$ pnpm run canary:simulation
 
-[dry-run] === Nightly Promotion Pipeline Complete ===
+=== Canary Router Simulation ===
 
-$ node jobs/nightly/tests/promote.test.ts
+--- Scenario 1: Happy-path rollout (10 → 50 → 100) ---
+  Phase 10%: challenger=116/1000 (11.6%) ✓
+  Phase 50%: challenger=480/1000 (48.0%) ✓
+  Phase 100%: challenger=1000/1000 (100.0%) ✓
 
-16 tests: 16 passed, 0 failed
+--- Scenario 2: Auto-rollback on degenerate_rate breach ---
+  Rollback triggered: true (metric=degenerate_rate, value=0.08, threshold=0.03)
+  All traffic to champion after rollback: 100/100 ✓
+  Phase advance blocked during rollback: true ✓
 
-$ pnpm verify
+--- Scenario 3: Kill switch disables all steering ---
+  Kill switch active — no steering: 100/100 ✓
+  Kill switch disabled — steering restored: true ✓
 
-Structure: verified
-JSON: 24 files validated
-Tasks: 23 contracts validated
-Contracts: lint passed, 6 schema tests passed
+--- Scenario 4: Recovery after rollback reset ---
+  Rollback reset — phase back to: 10%
+  Can route to challenger again: true ✓
+
+--- Scenario 5: CanaryController — phase progression with events ---
+  Auto-advance 10% → 50%: true (phase=50%) ✓
+  Auto-advance 50% → 100%: true (phase=100%) ✓
+  Phase advance events: 2 ✓
+  Rollout complete event: true ✓
+
+--- Scenario 6: Controller rollback + latency SLA ---
+  Rollback triggered: true (latency=0.009ms) ✓
+  Latency within SLA (<5ms): true ✓
+  Rollback event emitted: true ✓
+
+--- Scenario 7: Runtime config update ---
+  Config updated: championProfileId=new-champ ✓
+  Config event emitted: true ✓
+
+✅ All simulation scenarios PASSED
 ```
 
 ## Definition of Done
 
-- [x] Nightly job orchestrates dataset mining, experiment scoring, and promotion handoff in one workflow
-- [x] Release artifact includes decision summary, evidence links, and rollback instructions
-- [x] Dry-run execution is reproducible and safe for CI or scheduled checks
+- [x] Controller supports phase progression 10/50/100 with runtime config updates.
+- [x] Rollback decision latency meets SLA under simulation tests (p95 < 5ms).
+- [x] Controller emits machine-readable events for phase changes and rollback actions.
 
 ## Constraints
 
-- [x] Pipeline supports dry-run mode with no production mutations
-- [x] Promotion handoff includes rollback payload for canary-router
-- [x] Pipeline fails when required evidence artifacts are missing or stale
+- [x] Rollout phase changes must be configurable without redeploy.
+- [x] Rollback must trigger on degenerate rate, p95 latency, and error-rate thresholds.
+- [x] Kill switch must always route to baseline no-steering path.
 
 ## Rollback Note
 
-If nightly promotion flow fails, pause automatic handoff and require manual promotion review with static canary champion routing.
+If controller logic is unstable, freeze rollout at champion-only routing and disable automatic phase advancement.

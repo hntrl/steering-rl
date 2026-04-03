@@ -181,6 +181,50 @@ Provider failures are mapped to structured 5xx responses with retry-safe error c
 
 Steering metadata is attached to both successful responses and error paths when a profile is resolved.
 
+## Live Canary Rollout Controller
+
+The `CanaryController` (`services/canary-router/src/controller.ts`) orchestrates phased traffic rollout from champion to challenger steering profiles with automatic rollback.
+
+### Features
+
+- **Phase progression**: 10% → 50% → 100% traffic to challenger, configurable at runtime without redeploy.
+- **Auto-advance**: Automatically advances to the next phase after a configurable observation window when metrics are healthy.
+- **Automatic rollback**: Triggers on `degenerate_rate`, `p95_latency_ms`, or `error_rate` threshold breaches.
+- **Kill switch**: Instantly routes all traffic to baseline (no steering) path.
+- **Freeze mode**: Disables all phase advancement while maintaining current routing.
+- **Machine-readable events**: Emits `phase_advance`, `rollback_triggered`, `kill_switch_enabled`, `config_updated`, and other structured events.
+
+### Usage
+
+```typescript
+import { CanaryController } from "./src/controller.js";
+
+const ctrl = new CanaryController({
+  minPhaseObservationMs: 5 * 60 * 1000,
+  autoAdvance: true,
+  router: {
+    championProfileId: "steer-gemma3-default-v12",
+    challengerProfileId: "steer-gemma4-candidate-v3",
+    rollbackPolicy: {
+      windowMs: 30 * 60 * 1000,
+      thresholds: [
+        { metric: "degenerate_rate", maxValue: 0.03 },
+        { metric: "error_rate", maxValue: 0.05 },
+        { metric: "p95_latency_ms", maxValue: 5000 },
+      ],
+    },
+  },
+});
+
+ctrl.on((event) => console.log(JSON.stringify(event)));
+```
+
+### Verify
+
+```bash
+pnpm test --filter canary-router && pnpm run canary:simulation
+```
+
 ## Nightly Promotion Pipeline
 
 The nightly promotion pipeline (`jobs/nightly/promote.ts`) automates the end-to-end flow from trace ingestion through Stage D decision output and canary configuration handoff.
