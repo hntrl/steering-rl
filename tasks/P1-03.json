@@ -1,0 +1,34 @@
+{
+  "task_id": "P1-03",
+  "title": "Automatic merged branch cleanup",
+  "goal": "Automatically delete merged task branches and prune stale task worktrees after successful reconciliation.",
+  "inputs": [
+    "scripts/agent-reconciler.mjs",
+    "scripts/lib/worktree.mjs",
+    "scripts/agent-daemon.sh"
+  ],
+  "expected_outputs": [
+    "scripts/agent-reconciler.mjs",
+    "scripts/lib/worktree.mjs",
+    "scripts/tests/branch-cleanup.test.mjs",
+    "README.md"
+  ],
+  "constraints": [
+    "Only delete branches matching agent/P0-## or agent/P1-## with merged PRs.",
+    "Never delete protected branches such as main or master.",
+    "Support dry-run mode that prints planned deletions without mutating git state."
+  ],
+  "verify_command": "node --test scripts/tests/branch-cleanup.test.mjs",
+  "definition_of_done": [
+    "Merged task branches are automatically cleaned from remote when safe.",
+    "Stale local task worktrees can be pruned without touching active runs.",
+    "Cleanup logic is covered by tests including dry-run behavior."
+  ],
+  "rollback_note": "If cleanup deletes unexpected refs, disable automatic deletion and run in dry-run mode while restoring branch selection guards.",
+  "dependencies": [
+    "P1-02"
+  ],
+  "priority": "P1",
+  "track": "control-plane",
+  "risk_level": "high"
+}

@@ -1,0 +1,34 @@
+{
+  "task_id": "P1-04",
+  "title": "Conflict-aware lockfile merge policy",
+  "goal": "Reduce merge conflict churn by adding branch-sync and lockfile conflict recovery rules to worker execution.",
+  "inputs": [
+    "scripts/agent-worker.mjs",
+    "scripts/lib/worktree.mjs",
+    "README.md"
+  ],
+  "expected_outputs": [
+    "scripts/agent-worker.mjs",
+    "scripts/lib/worktree.mjs",
+    "scripts/tests/conflict-recovery.test.mjs",
+    "README.md"
+  ],
+  "constraints": [
+    "When pnpm-lock.yaml conflicts, regenerate via pnpm install --lockfile-only.",
+    "Do not discard non-lockfile task changes during conflict recovery.",
+    "After repeated conflict failures, mark issue blocked with an actionable remediation comment."
+  ],
+  "verify_command": "node --test scripts/tests/conflict-recovery.test.mjs",
+  "definition_of_done": [
+    "Worker can recover from lockfile conflicts without manual intervention in common cases.",
+    "Conflict recovery emits clear run events and issue comments.",
+    "Regression tests cover successful recovery and repeated-failure escalation."
+  ],
+  "rollback_note": "If automated conflict recovery is unsafe, disable lockfile auto-resolution and fall back to manual conflict resolution workflow.",
+  "dependencies": [
+    "P1-01"
+  ],
+  "priority": "P1",
+  "track": "runtime",
+  "risk_level": "high"
+}
