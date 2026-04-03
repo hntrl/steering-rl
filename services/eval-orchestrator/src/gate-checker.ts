@@ -5,12 +5,40 @@ import type {
   GateResult,
   HardGateThresholds,
   HardGatesOutput,
+  MetricsValidationResult,
   RankWeights,
 } from "./types.js";
 import { DEFAULT_HARD_GATE_THRESHOLDS } from "./defaults.js";
 import { computeRankComponents, computeRankScore } from "./score.js";
 
 const EPSILON = 1e-9;
+
+const REQUIRED_CANDIDATE_METRICS: (keyof CandidateMetrics)[] = [
+  "correctness",
+  "coherence",
+  "concept_adherence",
+  "solve_rate_norm",
+  "degenerate_rate",
+  "latency_norm",
+  "language_stability",
+  "p95_latency_ms",
+  "safety_critical_violations",
+];
+
+export function validateMetricsPresent(
+  metrics: Record<string, unknown>,
+  requiredKeys?: string[],
+): MetricsValidationResult {
+  const keys = requiredKeys ?? (REQUIRED_CANDIDATE_METRICS as string[]);
+  const missing: string[] = [];
+  for (const key of keys) {
+    const val = metrics[key];
+    if (val === undefined || val === null || typeof val !== "number" || Number.isNaN(val)) {
+      missing.push(key);
+    }
+  }
+  return { valid: missing.length === 0, missing };
+}
 
 export interface ComputeDecisionInput {
   experiment_id: string;
