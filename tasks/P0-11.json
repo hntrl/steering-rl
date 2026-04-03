@@ -28,7 +28,8 @@
     "P0-06",
     "P0-09"
   ],
-  "priority": "P0",
+  "phase": "foundation",
+  "priority": "high",
   "track": "rollout",
   "risk_level": "high"
 }

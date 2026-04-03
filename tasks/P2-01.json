@@ -29,7 +29,8 @@
     "P0-05",
     "P0-06"
   ],
-  "priority": "P2",
+  "phase": "methodology",
+  "priority": "high",
   "track": "runtime",
   "risk_level": "high"
 }

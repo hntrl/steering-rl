@@ -28,7 +28,8 @@
   "dependencies": [
     "P2-06"
   ],
-  "priority": "P3",
+  "phase": "rollout",
+  "priority": "low",
   "track": "rollout",
   "risk_level": "high"
 }

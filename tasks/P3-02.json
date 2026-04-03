@@ -1,35 +1,36 @@
 {
   "task_id": "P3-02",
-  "title": "Shadow traffic parity gate",
-  "goal": "Evaluate challenger responses in shadow mode and block rollout when parity or hard-gate thresholds regress.",
+  "title": "Gemma 3 Ramp-parity single-layer sweep",
+  "goal": "Reproduce Ramp-style single-layer findings on Gemma 3 27B-IT using deterministic layer and multiplier sweeps across layers 16-53.",
   "inputs": [
-    "services/steering-inference-api/src/providers/model-adapter.ts",
-    "services/eval-orchestrator/src/gate-checker.ts",
-    "feedback-loop.md"
+    "ramp-post.md",
+    "model-and-layers.md",
+    "jobs/sweeps/gemma4-stage-b.ts",
+    "vector-injection-methodology-plan.md"
   ],
   "expected_outputs": [
-    "services/eval-orchestrator/src/shadow-parity.ts",
-    "services/eval-orchestrator/tests/shadow-parity.test.ts",
-    "services/steering-inference-api/src/shadow-runner.ts",
-    "README.md"
+    "jobs/sweeps/gemma3-stage-b-parity.ts",
+    "jobs/sweeps/tests/gemma3-stage-b-parity.test.ts",
+    "artifacts/sweeps/gemma3-stage-b-parity.json",
+    "artifacts/sweeps/README.md"
   ],
   "constraints": [
-    "Shadow mode must never affect user-visible response payloads.",
-    "Parity gate output must include per-metric deltas and confidence intervals.",
-    "Store parity results with experiment IDs for auditability."
+    "Target Gemma 3 27B-IT only for this task.",
+    "Sweep candidate layers 16-53 with deterministic seeds and persisted run-card metadata.",
+    "Include sparse global and dense control configurations so degeneration cliffs are measurable."
   ],
-  "verify_command": "pnpm test --filter eval-orchestrator",
+  "verify_command": "pnpm run sweep:gemma3:stageB",
   "definition_of_done": [
-    "Shadow runner executes champion and challenger on mirrored traffic samples.",
-    "Parity gate emits pass/fail verdicts with machine-readable reasons.",
-    "Rollout path can consume parity verdicts as a precondition for phase advancement."
+    "Sweep artifact ranks single-layer candidates and records hard-gate pass/fail metrics.",
+    "Result includes coherence, adherence, degeneration, and language stability metrics per configuration.",
+    "Top candidate set includes at least one result near Ramp-reported layer behavior for follow-on calibration."
   ],
-  "rollback_note": "If shadow runner causes overhead or instability, disable mirrored challenger execution and retain static gate checks.",
+  "rollback_note": "If parity sweep outputs are unstable, freeze the previous deterministic harness and rerun with pinned prompts and judge settings before changing defaults.",
   "dependencies": [
-    "P3-01",
-    "P2-03"
+    "P2-05"
   ],
-  "priority": "P3",
+  "phase": "methodology",
+  "priority": "high",
   "track": "evaluation",
   "risk_level": "high"
 }

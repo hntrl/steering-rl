@@ -28,7 +28,8 @@
     "P0-01",
     "P0-04"
   ],
-  "priority": "P0",
+  "phase": "foundation",
+  "priority": "high",
   "track": "feedback-loop",
   "risk_level": "medium"
 }

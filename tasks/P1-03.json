@@ -28,7 +28,8 @@
   "dependencies": [
     "P1-02"
   ],
-  "priority": "P1",
+  "phase": "hardening",
+  "priority": "medium",
   "track": "control-plane",
   "risk_level": "high"
 }

@@ -28,7 +28,8 @@
   "dependencies": [
     "P0-05"
   ],
-  "priority": "P2",
+  "phase": "methodology",
+  "priority": "high",
   "track": "control-plane",
   "risk_level": "medium"
 }

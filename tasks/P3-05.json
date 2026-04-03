@@ -29,7 +29,8 @@
     "P3-01",
     "P2-01"
   ],
-  "priority": "P3",
+  "phase": "rollout",
+  "priority": "low",
   "track": "runtime",
   "risk_level": "high"
 }

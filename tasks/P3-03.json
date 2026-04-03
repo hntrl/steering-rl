@@ -1,34 +1,37 @@
 {
   "task_id": "P3-03",
-  "title": "Promotion governance and approval workflow",
-  "goal": "Require explicit human approval with evidence bundles before production promotion canary handoff.",
+  "title": "Ramp-parity methodology report and acceptance gates",
+  "goal": "Produce a reproducible Gemma 3 parity report that codifies acceptance criteria for matching Ramp-style steering behavior.",
   "inputs": [
-    "jobs/nightly/promote.ts",
-    "artifacts/releases/README.md",
-    "services/eval-orchestrator/src/gate-checker.ts"
+    "artifacts/sweeps/gemma3-stage-b-parity.json",
+    "artifacts/sweeps/gemma3-stage-c-parity.json",
+    "ramp-post.md",
+    "vector-injection-methodology-plan.md"
   ],
   "expected_outputs": [
-    "jobs/nightly/approval-gate.ts",
-    "jobs/nightly/tests/approval-gate.test.ts",
-    "artifacts/releases/promotion-decision.schema.json",
-    "README.md"
+    "artifacts/sweeps/gemma3-ramp-parity-report.md",
+    "artifacts/sweeps/gemma3-acceptance-gates.json",
+    "jobs/sweeps/tests/gemma3-parity-gates.test.ts",
+    "model-and-layers.md"
   ],
   "constraints": [
-    "Promotion must fail closed when approval record is missing or invalid.",
-    "Evidence bundle must include experiment decision, parity report, and rollback plan.",
-    "Approval records must be immutable and timestamped."
+    "Report must explicitly compare observed results against Ramp qualitative findings.",
+    "Acceptance gates must include coherence, degeneration, and adherence thresholds.",
+    "Do not propose Gemma 4 migration until Gemma 3 acceptance gates pass."
   ],
-  "verify_command": "node --test jobs/nightly/tests/approval-gate.test.ts",
+  "verify_command": "node --test jobs/sweeps/tests/gemma3-parity-gates.test.ts",
   "definition_of_done": [
-    "Nightly promotion flow blocks without approved decision artifact.",
-    "Approval artifact schema validates required evidence references.",
-    "Audit trail links each promotion to an approver identity and timestamp."
+    "Parity report documents where Gemma 3 behavior matches or diverges from Ramp findings.",
+    "Acceptance-gate artifact is machine-readable and includes pass/fail rationale.",
+    "Methodology decision states whether Gemma 3 parity is sufficient to start Gemma 4 transfer experiments."
   ],
-  "rollback_note": "If approval gate blocks healthy releases unexpectedly, switch to advisory mode while preserving immutable decision artifacts.",
+  "rollback_note": "If parity evidence is inconclusive, hold methodology status at 'not ready' and rerun sweeps with expanded concept and prompt coverage.",
   "dependencies": [
-    "P3-02"
+    "P3-02",
+    "P3-04"
   ],
-  "priority": "P3",
+  "phase": "methodology",
+  "priority": "medium",
   "track": "control-plane",
   "risk_level": "medium"
 }

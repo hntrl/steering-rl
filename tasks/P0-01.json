@@ -27,7 +27,8 @@
   ],
   "rollback_note": "If contract changes break downstream consumers, revert to previous contract version and keep old endpoint behavior behind compatibility mode.",
   "dependencies": [],
-  "priority": "P0",
+  "phase": "foundation",
+  "priority": "high",
   "track": "control-plane",
   "risk_level": "medium"
 }

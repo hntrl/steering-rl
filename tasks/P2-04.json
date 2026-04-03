@@ -29,7 +29,8 @@
     "P0-07",
     "P0-10"
   ],
-  "priority": "P2",
+  "phase": "methodology",
+  "priority": "high",
   "track": "feedback-loop",
   "risk_level": "medium"
 }

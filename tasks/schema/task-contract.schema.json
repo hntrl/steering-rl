@@ -13,6 +13,7 @@
     "verify_command",
     "definition_of_done",
     "rollback_note",
+    "phase",
     "priority",
     "track",
     "risk_level"
@@ -66,6 +67,10 @@
       "type": "string",
       "minLength": 1
     },
+    "phase": {
+      "type": "string",
+      "enum": ["foundation", "hardening", "methodology", "rollout"]
+    },
     "dependencies": {
       "type": "array",
       "items": {
@@ -74,7 +79,7 @@
     },
     "priority": {
       "type": "string",
-      "enum": ["P0", "P1", "P2", "P3"]
+      "enum": ["high", "medium", "low"]
     },
     "track": {
       "type": "string",

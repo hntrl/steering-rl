@@ -10,6 +10,7 @@ const REQUIRED_STRING_FIELDS = [
   "goal",
   "verify_command",
   "rollback_note",
+  "phase",
   "priority",
   "track",
   "risk_level",
@@ -22,8 +23,17 @@ const REQUIRED_ARRAY_FIELDS = [
   "definition_of_done",
 ];
 
-const PRIORITIES = new Set(["P0", "P1", "P2", "P3"]);
+const PHASES = new Set(["foundation", "hardening", "methodology", "rollout"]);
+const PRIORITIES = new Set(["high", "medium", "low"]);
 const RISK_LEVELS = new Set(["low", "medium", "high"]);
+
+const TRACKS = new Set([
+  "runtime",
+  "control-plane",
+  "evaluation",
+  "feedback-loop",
+  "rollout",
+]);
 
 function isNonEmptyString(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -50,8 +60,16 @@ function validateTask(task, fileName) {
     }
   }
 
+  if (task.phase && !PHASES.has(task.phase)) {
+    errors.push("phase must be one of: foundation, hardening, methodology, rollout");
+  }
+
   if (task.priority && !PRIORITIES.has(task.priority)) {
-    errors.push("priority must be one of: P0, P1, P2, P3");
+    errors.push("priority must be one of: high, medium, low");
+  }
+
+  if (task.track && !TRACKS.has(task.track)) {
+    errors.push("track must be one of: runtime, control-plane, evaluation, feedback-loop, rollout");
   }
 
   if (task.risk_level && !RISK_LEVELS.has(task.risk_level)) {

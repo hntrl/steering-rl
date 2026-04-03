@@ -30,7 +30,8 @@
     "P2-04",
     "P0-11"
   ],
-  "priority": "P2",
+  "phase": "methodology",
+  "priority": "high",
   "track": "rollout",
   "risk_level": "high"
 }

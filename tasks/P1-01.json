@@ -24,7 +24,8 @@
     "Regression test demonstrates failure on previous blocked behavior."
   ],
   "rollback_note": "If this handoff path becomes unstable, disable branch-reuse PR handoff and fall back to manual PR creation while preserving run logs for triage.",
-  "priority": "P1",
+  "phase": "hardening",
+  "priority": "medium",
   "track": "runtime",
   "risk_level": "medium"
 }

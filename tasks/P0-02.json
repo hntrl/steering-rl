@@ -27,7 +27,8 @@
   "dependencies": [
     "P0-01"
   ],
-  "priority": "P0",
+  "phase": "foundation",
+  "priority": "high",
   "track": "control-plane",
   "risk_level": "low"
 }
