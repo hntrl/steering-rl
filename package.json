@@ -7,6 +7,16 @@
   "scripts": {
     "tasks:validate": "node scripts/validate-task-contracts.mjs",
     "tasks:issues": "node scripts/create-gh-issues.mjs",
+    "agent:supervisor": "node scripts/agent-supervisor.mjs",
+    "agent:worker": "node scripts/agent-worker.mjs",
+    "agent:reconciler": "node scripts/agent-reconciler.mjs",
+    "agent:once": "bash scripts/agent-daemon.sh once",
+    "agent:start": "bash scripts/agent-daemon.sh start",
+    "agent:stop": "bash scripts/agent-daemon.sh stop",
+    "agent:status": "bash scripts/agent-daemon.sh status",
+    "agent:follow": "bash scripts/agent-daemon.sh follow",
+    "agent:doctor": "node scripts/agent-doctor.mjs",
+    "events:validate": "node scripts/validate-events-jsonl.mjs",
     "verify": "pnpm tasks:validate"
   }
 }
