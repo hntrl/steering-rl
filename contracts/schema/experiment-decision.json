@@ -1,109 +1,232 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "experiment-decision.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steering.example.com/schema/experiment-decision.json",
   "title": "Experiment Decision",
-  "description": "Schema for experiment promotion decisions produced by the gate checker.",
+  "description": "Records the outcome of a champion/challenger experiment, including hard gate results, composite ranking score, and the promotion decision. Used by the gate checker service to enforce promotion policy from feedback-loop.md section 6.",
   "type": "object",
   "required": [
     "experiment_id",
-    "champion_profile_id",
-    "challenger_profile_id",
-    "timestamp",
-    "decision",
+    "date",
+    "suite",
+    "dataset_version",
+    "champion",
+    "challenger",
     "hard_gates",
-    "rank_score"
+    "scores",
+    "rank_score",
+    "decision",
+    "decided_at"
   ],
+  "additionalProperties": false,
   "properties": {
     "experiment_id": {
       "type": "string",
-      "description": "Unique experiment identifier."
+      "description": "Unique experiment identifier following the naming pattern exp-{date}-{suite}-{champion}-vs-{challenger}",
+      "examples": ["exp-20260402-core-gemma3v12-vs-gemma4v3"]
     },
-    "champion_profile_id": {
+    "date": {
       "type": "string",
-      "description": "Profile ID of the current champion."
+      "format": "date",
+      "description": "Date the experiment was executed, in ISO 8601 date format",
+      "examples": ["2026-04-02"]
     },
-    "challenger_profile_id": {
+    "suite": {
       "type": "string",
-      "description": "Profile ID of the challenger candidate."
+      "description": "Eval suite used for this experiment, e.g. core, edge, degeneracy, migration",
+      "examples": ["core"]
     },
-    "timestamp": {
+    "dataset_version": {
       "type": "string",
-      "format": "date-time",
-      "description": "ISO-8601 timestamp of the decision."
+      "description": "Versioned dataset identifier used for the experiment",
+      "examples": ["steer-core-golden-v20260402"]
+    },
+    "champion": {
+      "$ref": "#/$defs/ExperimentCandidate",
+      "description": "The current production champion profile and its results"
+    },
+    "challenger": {
+      "$ref": "#/$defs/ExperimentCandidate",
+      "description": "The challenger profile being evaluated against the champion"
+    },
+    "hard_gates": {
+      "$ref": "#/$defs/HardGates",
+      "description": "Results of the non-negotiable hard gate checks from feedback-loop.md section 6.1"
+    },
+    "scores": {
+      "$ref": "#/$defs/ExperimentScores",
+      "description": "Detailed metric scores for both candidates"
+    },
+    "rank_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Composite weighted ranking score for the challenger, computed per feedback-loop.md section 5.3",
+      "examples": [0.82]
     },
     "decision": {
       "type": "string",
-      "enum": ["promote", "hold", "fail"],
-      "description": "Final promotion decision."
+      "enum": ["promote", "hold", "rollback"],
+      "description": "Final promotion decision: promote (challenger wins), hold (insufficient evidence), or rollback (challenger regresses)",
+      "examples": ["promote"]
     },
-    "hard_gates": {
-      "type": "object",
-      "required": ["passed", "results"],
-      "properties": {
-        "passed": {
-          "type": "boolean",
-          "description": "True if all hard gates passed."
-        },
-        "results": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/gate_result"
-          },
-          "description": "Individual gate results."
-        }
-      },
-      "additionalProperties": false
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the decision was recorded",
+      "examples": ["2026-04-02T12:00:00Z"]
     },
-    "rank_score": {
-      "type": ["number", "null"],
-      "description": "Weighted rank score for the challenger. Null when hard gates fail."
-    },
-    "rank_components": {
-      "type": ["object", "null"],
-      "description": "Breakdown of individual weighted score components.",
-      "properties": {
-        "correctness": { "type": "number" },
-        "coherence": { "type": "number" },
-        "concept_adherence": { "type": "number" },
-        "solve_rate_norm": { "type": "number" },
-        "degenerate_rate_inv": { "type": "number" },
-        "latency_norm": { "type": "number" }
-      },
-      "additionalProperties": false
-    },
-    "champion_rank_score": {
-      "type": ["number", "null"],
-      "description": "Weighted rank score for the champion for comparison."
+    "rationale": {
+      "type": "string",
+      "description": "Optional human-readable explanation for the decision",
+      "examples": ["Challenger passes all hard gates and improves concept adherence by +0.04 with no coherence regression."]
     }
   },
-  "additionalProperties": false,
-  "definitions": {
-    "gate_result": {
+  "$defs": {
+    "ExperimentCandidate": {
       "type": "object",
-      "required": ["gate", "passed", "reason"],
+      "required": ["profile_id", "base_model"],
+      "additionalProperties": false,
+      "description": "Identifies a candidate (champion or challenger) in an experiment",
       "properties": {
-        "gate": {
+        "profile_id": {
           "type": "string",
-          "description": "Machine-readable gate identifier."
+          "description": "Steering profile identifier for this candidate",
+          "examples": ["steer-gemma3-default-v12"]
         },
+        "base_model": {
+          "type": "string",
+          "description": "Base model identifier used by this candidate",
+          "examples": ["gemma-3-27b-it"]
+        }
+      }
+    },
+    "HardGates": {
+      "type": "object",
+      "required": [
+        "passed",
+        "degenerate_rate",
+        "coherence",
+        "correctness",
+        "language_stability",
+        "p95_latency_ms"
+      ],
+      "additionalProperties": false,
+      "description": "Hard gate evaluation results. All gates must pass for a promotion to proceed (feedback-loop.md section 6.1).",
+      "properties": {
         "passed": {
           "type": "boolean",
-          "description": "Whether this gate passed."
+          "description": "Whether all hard gates passed. False if any individual gate failed.",
+          "examples": [true]
         },
-        "reason": {
-          "type": "string",
-          "description": "Machine-readable explanation of the result."
+        "degenerate_rate": {
+          "$ref": "#/$defs/GateResult",
+          "description": "Degeneration rate must be <= 3% on core and migration suites"
         },
-        "actual": {
-          "type": ["number", "boolean", "null"],
-          "description": "Actual measured value."
+        "coherence": {
+          "$ref": "#/$defs/GateResult",
+          "description": "Coherence must be >= champion_coherence - 0.02"
+        },
+        "correctness": {
+          "$ref": "#/$defs/GateResult",
+          "description": "Correctness must be >= champion_correctness - 0.01"
+        },
+        "language_stability": {
+          "$ref": "#/$defs/GateResult",
+          "description": "Language stability must be >= 99%"
+        },
+        "p95_latency_ms": {
+          "$ref": "#/$defs/GateResult",
+          "description": "P95 latency must be <= champion p95 latency * 1.20"
+        },
+        "safety": {
+          "$ref": "#/$defs/GateResult",
+          "description": "No critical safety regressions. Optional if safety eval not applicable."
+        }
+      }
+    },
+    "GateResult": {
+      "type": "object",
+      "required": ["passed", "value", "threshold"],
+      "additionalProperties": false,
+      "description": "Result of a single hard gate evaluation",
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "Whether this individual gate passed",
+          "examples": [true]
+        },
+        "value": {
+          "type": "number",
+          "description": "Observed metric value for the challenger",
+          "examples": [0.02]
         },
         "threshold": {
-          "type": ["number", "boolean", "null"],
-          "description": "Threshold the value was compared against."
+          "type": "number",
+          "description": "Threshold value used for the gate comparison",
+          "examples": [0.03]
         }
-      },
-      "additionalProperties": false
+      }
+    },
+    "ExperimentScores": {
+      "type": "object",
+      "required": [
+        "correctness",
+        "coherence",
+        "concept_adherence",
+        "degenerate_rate",
+        "language_stability"
+      ],
+      "additionalProperties": false,
+      "description": "Detailed metric scores from the experiment, combining agent/harness metrics and steering-specific metrics from feedback-loop.md section 5",
+      "properties": {
+        "correctness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Correctness score: passed / total",
+          "examples": [0.95]
+        },
+        "coherence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Coherence score from LLM judge evaluation",
+          "examples": [0.91]
+        },
+        "concept_adherence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Concept adherence score from LLM judge or rubric evaluation",
+          "examples": [0.88]
+        },
+        "degenerate_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of outputs with degeneration (repetition, collapse, incoherence)",
+          "examples": [0.02]
+        },
+        "language_stability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of outputs with no unintended language drift",
+          "examples": [0.99]
+        },
+        "solve_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Average solve rate: expected_steps / wall_clock_seconds, with failures as zero",
+          "examples": [0.75]
+        },
+        "latency_p95_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "P95 inference latency in milliseconds",
+          "examples": [2100]
+        }
+      }
     }
   }
 }

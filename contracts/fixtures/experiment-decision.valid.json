@@ -1,0 +1,55 @@
+{
+  "experiment_id": "exp-20260402-core-gemma3v12-vs-gemma4v3",
+  "date": "2026-04-02",
+  "suite": "core",
+  "dataset_version": "steer-core-golden-v20260402",
+  "champion": {
+    "profile_id": "steer-gemma3-default-v12",
+    "base_model": "gemma-3-27b-it"
+  },
+  "challenger": {
+    "profile_id": "steer-gemma4-candidate-v3",
+    "base_model": "gemma-4-27b-it"
+  },
+  "hard_gates": {
+    "passed": true,
+    "degenerate_rate": {
+      "passed": true,
+      "value": 0.02,
+      "threshold": 0.03
+    },
+    "coherence": {
+      "passed": true,
+      "value": 0.91,
+      "threshold": 0.89
+    },
+    "correctness": {
+      "passed": true,
+      "value": 0.95,
+      "threshold": 0.94
+    },
+    "language_stability": {
+      "passed": true,
+      "value": 0.995,
+      "threshold": 0.99
+    },
+    "p95_latency_ms": {
+      "passed": true,
+      "value": 2100,
+      "threshold": 2520
+    }
+  },
+  "scores": {
+    "correctness": 0.95,
+    "coherence": 0.91,
+    "concept_adherence": 0.88,
+    "degenerate_rate": 0.02,
+    "language_stability": 0.995,
+    "solve_rate": 0.75,
+    "latency_p95_ms": 2100
+  },
+  "rank_score": 0.82,
+  "decision": "promote",
+  "decided_at": "2026-04-02T12:00:00Z",
+  "rationale": "Challenger passes all hard gates and improves concept adherence by +0.04 with no coherence regression."
+}
