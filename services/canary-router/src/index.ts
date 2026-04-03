@@ -23,3 +23,14 @@ export {
   type ControllerEventType,
   type ControllerEventListener,
 } from "./controller.js";
+
+export {
+  BudgetHooks,
+  DEFAULT_BUDGET_HOOK_CONFIG,
+  type BudgetHookConfig,
+  type BudgetHookEvent,
+  type BudgetHookEventType,
+  type BudgetHookEventListener,
+  type BudgetSignal,
+  type BudgetSeverity,
+} from "./budget-hooks.js";

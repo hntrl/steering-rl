@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["tests/chat-completions.test.ts", "tests/guardrails.test.ts"],
+    include: ["tests/chat-completions.test.ts", "tests/guardrails.test.ts", "tests/cost-policy.test.ts"],
     testTimeout: 30_000,
   },
 });

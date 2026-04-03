@@ -225,6 +225,61 @@ ctrl.on((event) => console.log(JSON.stringify(event)));
 pnpm test --filter canary-router && pnpm run canary:simulation
 ```
 
+## Cost and Quota Guardrails
+
+The inference path enforces per-route token budgets and request quotas to prevent production traffic from exceeding cost or safety envelopes.
+
+### Cost Policy (`steering-inference-api`)
+
+`src/guardrails/cost-policy.ts` provides a `CostPolicy` class that:
+
+- Tracks token usage and request counts within a configurable rolling window.
+- Supports **per-model** and **per-profile** budget overrides with specificity-based resolution.
+- Emits **soft-limit warnings** when usage crosses a configurable fraction (default 80%) of the budget.
+- Returns **deterministic 429 errors** with `Retry-After` guidance when hard limits are breached.
+- Emits all policy decisions as structured telemetry events for auditing.
+- Supports runtime configuration updates — hard limits can be disabled to retain warning-only telemetry.
+
+```typescript
+import { CostPolicy, BudgetExceededError } from "./src/guardrails/cost-policy.js";
+
+const policy = new CostPolicy({
+  defaultLimits: { maxTokens: 1_000_000, maxRequests: 10_000, softLimitFraction: 0.8 },
+  windowMs: 60 * 60 * 1000,
+  overrides: [
+    { model: "gemma-3-27b-it", limits: { maxTokens: 2_000_000 } },
+    { profileId: "premium", limits: { maxRequests: 50_000 } },
+  ],
+  hardLimitsEnabled: true,
+});
+
+policy.on((event) => console.log(JSON.stringify(event)));
+const decision = policy.enforce("gemma-3-27b-it", "profile-id", estimatedTokens);
+```
+
+### Budget Hooks (`canary-router`)
+
+`src/budget-hooks.ts` connects budget breach signals to the rollout controller:
+
+- **Warning signals** are recorded and emitted as telemetry without affecting rollout.
+- **Breach signals** freeze the controller (halt phase progression) after a configurable threshold.
+- Optional rollback-on-breach mode triggers rollback evaluation.
+- Reset clears breach counters and optionally unfreezes the controller.
+
+```typescript
+import { CanaryController } from "./src/controller.js";
+import { BudgetHooks } from "./src/budget-hooks.js";
+
+const ctrl = new CanaryController();
+const hooks = new BudgetHooks(ctrl, { freezeOnBreach: true, breachCountThreshold: 1 });
+hooks.on((event) => console.log(JSON.stringify(event)));
+hooks.processSignal({ severity: "breach", model: "gemma-3-27b-it", ... });
+```
+
+### Rollback
+
+If budget enforcement blocks valid traffic unexpectedly, disable hard limits and retain warning-only telemetry until policy thresholds are corrected.
+
 ## Nightly Promotion Pipeline
 
 The nightly promotion pipeline (`jobs/nightly/promote.ts`) automates the end-to-end flow from trace ingestion through Stage D decision output and canary configuration handoff.
