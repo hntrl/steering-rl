@@ -181,6 +181,35 @@ Provider failures are mapped to structured 5xx responses with retry-safe error c
 
 Steering metadata is attached to both successful responses and error paths when a profile is resolved.
 
+## Nightly Promotion Pipeline
+
+The nightly promotion pipeline (`jobs/nightly/promote.ts`) automates the end-to-end flow from trace ingestion through Stage D decision output and canary configuration handoff.
+
+### Run
+
+```bash
+pnpm run promote:nightly
+```
+
+### Dry-run mode
+
+Safe for CI and scheduled checks — executes all stages but writes no files:
+
+```bash
+pnpm run promote:nightly -- --dry-run
+```
+
+### Pipeline stages
+
+1. **Dataset mining** — Runs Stage A (baseline), Stage B (single-layer sweep), and Stage C (multi-layer calibration)
+2. **Experiment scoring** — Runs Stage D champion-challenger bake-off with hard gate enforcement
+3. **Promotion handoff** — Builds canary router configuration with rollback payload
+4. **Release artifact** — Emits decision summary, evidence links, and rollback instructions to `artifacts/releases/`
+
+### Rollback
+
+If the nightly promotion flow fails, pause automatic handoff and require manual promotion review with static canary champion routing. See `artifacts/releases/README.md` for rollback payload format.
+
 ## Core docs
 
 - `steering-exec-plan.md`

@@ -29,7 +29,8 @@
     "sweep:gemma4:stageC": "node jobs/sweeps/gemma4-stage-a.ts && node jobs/sweeps/gemma4-stage-b.ts && node jobs/sweeps/gemma4-stage-c.ts && node jobs/sweeps/tests/gemma4-stage-c.test.ts",
     "sweep:gemma4:stageD": "node jobs/sweeps/gemma4-stage-a.ts && node jobs/sweeps/gemma4-stage-b.ts && node jobs/sweeps/gemma4-stage-c.ts && node jobs/sweeps/gemma4-stage-d.ts && node jobs/sweeps/tests/gemma4-stage-d.test.ts",
     "sweep:gemma4:test": "node jobs/sweeps/tests/gemma4-sweeps.test.ts",
-    "trace-miner:dry-run": "pnpm --filter trace-miner run dry-run"
+    "trace-miner:dry-run": "pnpm --filter trace-miner run dry-run",
+    "promote:nightly": "node jobs/nightly/promote.ts"
   },
   "devDependencies": {
     "@redocly/cli": "^1.34.2",

@@ -1,52 +1,59 @@
 ## Task
 
-**Task ID:** P2-03
-**Title:** Gemma 4 Stage D champion-challenger bake-off
-**Goal:** Run Stage D head-to-head experiments and emit machine-readable promotion decisions for Gemma 4 challengers versus current champion.
+**Task ID:** P2-06
+**Title:** Nightly promotion pipeline and canary handoff
+**Goal:** Automate end-to-end nightly promotion flow from trace ingestion through Stage D decision output and canary configuration handoff.
 
 ## Changes
 
 ### New files
 
-- **`jobs/sweeps/gemma4-stage-d.ts`** — Stage D champion-challenger sweep. Takes Stage C multi-layer candidates, runs each head-to-head against the champion, applies hard gates first (fail closed on missing metrics), then computes weighted rank scores to emit `promote` or `hold` decisions. Decision artifacts include experiment IDs, evidence bundle IDs, hard-gate reasons, rank component breakdowns, and scores.
-- **`jobs/sweeps/tests/gemma4-stage-d.test.ts`** — 32 tests covering config construction, fail-closed metric validation, hard gate evaluation, rank scoring, and full bake-off execution with reproducibility checks.
-- **`artifacts/sweeps/gemma4-stage-d-decision.json`** — Generated decision artifact with all required fields.
+- **`jobs/nightly/promote.ts`** — End-to-end nightly promotion pipeline. Orchestrates dataset mining (Stage A → B → C), experiment scoring (Stage D champion-challenger bake-off), canary handoff with rollback payload, and release artifact generation. Supports `--dry-run` mode with no production mutations. Fails when required evidence artifacts are missing or stale.
+- **`jobs/nightly/tests/promote.test.ts`** — 16 tests covering config construction, evidence validation, dataset mining, experiment scoring, canary handoff (including rollback payload), release artifact completeness, full dry-run pipeline execution, and reproducibility.
+- **`artifacts/releases/README.md`** — Documents the release artifact format including decision summary, canary handoff, rollback payload, and evidence links.
 
 ### Modified files
 
-- **`services/eval-orchestrator/src/gate-checker.ts`** — Added `validateMetricsPresent()` function that fails closed when required metrics are missing (null, undefined, NaN, or non-numeric).
-- **`services/eval-orchestrator/src/types.ts`** — Added `MetricsValidationResult` interface.
-- **`services/eval-orchestrator/tests/gate-checker.test.ts`** — Added 8 tests for `validateMetricsPresent` covering missing, null, NaN, undefined, and non-numeric values.
-- **`package.json`** — Added `sweep:gemma4:stageD` script.
+- **`package.json`** — Added `promote:nightly` script.
+- **`README.md`** — Added nightly promotion pipeline section with run instructions, dry-run mode, pipeline stages, and rollback note.
 
 ## Verify Command Output
 
 ```
-$ pnpm run sweep:gemma4:stageD
+$ pnpm run promote:nightly -- --dry-run
 
-[Stage A] PASS — baseline complete.
-[Stage B] PASS — 6 challenger candidates ready for Stage C.
-[Stage C] PASS — 1 multi-layer candidate ready for Stage D.
-[Stage D] Model: gemma-4-27b-it (rev 2026-06-01)
-[Stage D] Dataset: steer-core-golden-v20260601
-[Stage D] Seed: 20260601
-[Stage D] Suite: core
-[Stage D] Stage C candidates: 1
-[Stage D] Champion: steer-gemma4-baseline-champion
-[Stage D] Total challengers: 1
-[Stage D] Passed hard gates: 1
-[Stage D] Promoted: 0
-[Stage D] Held: 1
-[Stage D] Decisions:
-  HOLD steer-gemma4-L35-L41-L47-multilayer-candidate
-    rank_score=0.8283 champion_rank_score=0.8580 gates_passed=true
-[Stage D] PASS — promotion decisions emitted.
+[dry-run] === Nightly Promotion Pipeline ===
 
-Stage D tests: 32 passed, 0 failed
+[dry-run] Validating evidence artifacts...
+[nightly] Step 1: Dataset mining — running Stage A baseline...
+[nightly]   Stage A: coherence=0.9115, correctness=0.8855
+[nightly] Step 2: Single-layer sweep — running Stage B...
+[nightly]   Stage B: 6 candidates
+[nightly] Step 3: Multi-layer calibration — running Stage C...
+[nightly]   Stage C: 1 multi-layer candidates
+[nightly] Step 4: Champion-challenger bake-off — running Stage D...
+[nightly]   Stage D: 0 promoted, 1 held, 0 failed gates
+[dry-run] Skipping Stage D artifact write.
+[dry-run] Step 5: Building canary handoff...
+[nightly] No challenger promoted — skipping canary handoff.
+[dry-run] Step 6: Building release artifact...
+[dry-run] Skipping release artifact write.
 
-$ pnpm test --filter experiment-gates
+[dry-run] === Pipeline Summary ===
+[dry-run]   Release: release-nightly-20260403
+[dry-run]   Total challengers: 1
+[dry-run]   Promoted: 0
+[dry-run]   Held: 1
+[dry-run]   Failed gates: 0
+[dry-run]   Promoted profile: none
+[dry-run]   Dry run: true
+[dry-run] Pipeline validation complete — no production mutations performed.
 
-gate-checker.test.ts: 40 tests passed (32 existing + 8 new validateMetricsPresent)
+[dry-run] === Nightly Promotion Pipeline Complete ===
+
+$ node jobs/nightly/tests/promote.test.ts
+
+16 tests: 16 passed, 0 failed
 
 $ pnpm verify
 
@@ -58,16 +65,16 @@ Contracts: lint passed, 6 schema tests passed
 
 ## Definition of Done
 
-- [x] Stage D produces explicit promote or hold decision artifacts
-- [x] Decision output includes hard-gate reasons and rank component breakdown
-- [x] Champion and challenger comparisons are reproducible from stored artifacts
+- [x] Nightly job orchestrates dataset mining, experiment scoring, and promotion handoff in one workflow
+- [x] Release artifact includes decision summary, evidence links, and rollback instructions
+- [x] Dry-run execution is reproducible and safe for CI or scheduled checks
 
 ## Constraints
 
-- [x] Apply hard gates before weighted rank comparisons
-- [x] Record evidence bundle IDs and experiment IDs in decision artifacts
-- [x] Fail closed when required metrics are missing
+- [x] Pipeline supports dry-run mode with no production mutations
+- [x] Promotion handoff includes rollback payload for canary-router
+- [x] Pipeline fails when required evidence artifacts are missing or stale
 
 ## Rollback Note
 
-If Stage D decisioning is inconsistent, lock promotion decisions to hold and require manual review using raw experiment metrics.
+If nightly promotion flow fails, pause automatic handoff and require manual promotion review with static canary champion routing.
