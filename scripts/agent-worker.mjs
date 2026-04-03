@@ -74,7 +74,7 @@ function trimOutput(output, maxLength = 6000) {
   return `${text.slice(0, maxLength)}\n... [truncated]`;
 }
 
-function buildPrBody({ task, taskId, issueNumber, verifyOutput }) {
+export function buildPrBody({ task, taskId, issueNumber, verifyOutput }) {
   return [
     `Closes #${issueNumber}`,
     "",
@@ -302,7 +302,7 @@ function ensureGitIdentityEnv() {
   };
 }
 
-function findTaskPr(repo, branch, token) {
+export function findTaskPr(repo, branch, token) {
   const prs = ghJson(
     [
       "pr",
@@ -349,7 +349,7 @@ function createPr(repo, branch, title, body, token, baseBranch) {
   return result.stdout.trim();
 }
 
-function countCommitsAheadOfBase(worktreeDir, branch, baseBranch) {
+export function countCommitsAheadOfBase(worktreeDir, branch, baseBranch) {
   runCommand("git", ["-C", worktreeDir, "fetch", "origin", baseBranch], {
     allowFailure: true,
   });
@@ -409,6 +409,17 @@ function upsertTaskPr({ repo, branch, token, task, taskId, issueNumber, verifyOu
   }
 
   return createPr(repo, branch, `[${taskId}] ${task.title}`, body, token, baseBranch);
+}
+
+export function resolveNoChangesOutcome({ hasChanges, commitsAhead, existingPr }) {
+  if (hasChanges) {
+    return { outcome: "has_changes" };
+  }
+  const hasBranchCommits = commitsAhead > 0;
+  if (hasBranchCommits || existingPr) {
+    return { outcome: "ready_for_review", commitsAhead, existingPr };
+  }
+  return { outcome: "no_changes", commitsAhead, existingPr: null };
 }
 
 async function finalizeReadyForReview({
@@ -973,15 +984,19 @@ async function main() {
 
     if (!hasGitChanges(worktreeDir)) {
       const commitsAhead = countCommitsAheadOfBase(worktreeDir, branch, baseBranch);
-      const hasBranchCommits = commitsAhead > 0;
       const existingPr = findTaskPr(args.repo, branch, token);
+      const noChangesResult = resolveNoChangesOutcome({
+        hasChanges: false,
+        commitsAhead,
+        existingPr,
+      });
 
-      if (hasBranchCommits || existingPr) {
+      if (noChangesResult.outcome === "ready_for_review") {
         logStep(
           `no working tree changes; reusing branch state (ahead=${commitsAhead}, existing_pr=${existingPr ? String(existingPr.number) : "none"})`,
         );
 
-        if (hasBranchCommits) {
+        if (commitsAhead > 0) {
           runCommand("git", ["-C", worktreeDir, "push", "-u", "origin", branch], {
             capture: false,
           });
@@ -1213,7 +1228,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] === __filename) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}
