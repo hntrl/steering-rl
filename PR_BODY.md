@@ -1,38 +1,60 @@
 ## Task
 
 **Task ID:** P3-02
-**Title:** Shadow traffic parity gate
-**Goal:** Evaluate challenger responses in shadow mode and block rollout when parity or hard-gate thresholds regress.
+**Title:** Gemma 3 Ramp-parity single-layer sweep
+**Goal:** Reproduce Ramp-style single-layer findings on Gemma 3 27B-IT using deterministic layer and multiplier sweeps across layers 16-53.
 
 ## Changes
 
 ### New files
 
-- **`services/steering-inference-api/src/shadow-runner.ts`** — `ShadowRunner` class that executes champion and challenger adapters on mirrored traffic samples. Champion response is always returned to the caller (shadow mode never affects user-visible payloads). Supports configurable sample rates, challenger timeouts, and structured telemetry events (`shadow_execution_complete`, `shadow_execution_error`, `shadow_sample_skipped`).
-- **`services/eval-orchestrator/src/shadow-parity.ts`** — `ParityGate` class that evaluates challenger parity against champion across shadow samples. Computes per-metric deltas with confidence intervals, evaluates regression tolerance verdicts, integrates hard gate checks, stores results by experiment ID for auditability, and exposes `canAdvanceRollout()` as a rollout precondition.
-- **`services/eval-orchestrator/tests/shadow-parity.test.ts`** — 39 tests covering metric aggregation, delta computation, confidence intervals, parity verdicts, hard gate integration, sample size requirements, machine-readable verdicts, auditability/storage, rollout preconditions, telemetry events, and regression tolerance configuration.
+- **`jobs/sweeps/gemma3-stage-b-parity.ts`** — Ramp-parity single-layer sweep for Gemma 3 27B-IT. Sweeps candidate layers 16-53 at multipliers 0.05–0.75 with deterministic seeds and persisted run-card metadata. Includes sparse global (5-layer Ramp default + all global layers) and dense control configurations (early-mid, mid, late, mid-to-late-19, all-candidate) so degeneration cliffs are measurable. Produces ranked challenger candidates with hard-gate pass/fail metrics and Ramp parity checks.
+- **`jobs/sweeps/tests/gemma3-stage-b-parity.test.ts`** — 24 tests covering config construction, sweep execution, reproducibility, hard gate results, sparse vs dense configuration comparisons, Ramp parity checks, run-card metadata, and artifact serialization.
 
 ### Modified files
 
-- **`services/eval-orchestrator/package.json`** — Renamed package from `experiment-gates` to `eval-orchestrator` to match the verify command filter.
-- **`README.md`** — Added Shadow Traffic Parity Gate documentation section covering shadow runner and parity gate usage.
+- **`package.json`** — Added `sweep:gemma3:stageB` script that runs the sweep and test suite.
+- **`artifacts/sweeps/README.md`** — Added Stage B-Parity documentation for Gemma 3 Ramp-parity sweep artifact.
+
+### Generated artifacts (gitignored, produced at runtime)
+
+- **`artifacts/sweeps/gemma3-stage-b-parity.json`** — Full sweep results with per-layer metrics, configuration results, challenger candidates, and Ramp parity summary.
 
 ## Verify Command Output
 
 ```
-$ pnpm test --filter eval-orchestrator
+$ pnpm run sweep:gemma3:stageB
 
-> eval-orchestrator@0.0.1 test
-> vitest run
+[Gemma 3 Parity] Model: gemma-3-27b-it (rev gemma-3-27b-it-qat-q4_0-gguf-2025-03-15)
+[Gemma 3 Parity] Dataset: steer-core-ramp-parity-v1
+[Gemma 3 Parity] Seed: 20250315
+[Gemma 3 Parity] Layers: 38 (16-53)
+[Gemma 3 Parity] Multipliers: 0.05, 0.15, 0.25, 0.35, 0.55, 0.75
+[Gemma 3 Parity] Configurations: 7
 
- RUN  v3.2.4
+[Gemma 3 Parity] Baseline — coherence: 0.9065, correctness: 0.9042
+[Gemma 3 Parity] Configurations tested: 228
+[Gemma 3 Parity] Passed hard gates: 8
+[Gemma 3 Parity] Challenger candidates: 8
 
- ✓ tests/shadow-parity.test.ts (39 tests) 6ms
- ✓ tests/gate-checker.test.ts (40 tests) 5ms
+Top challenger candidates:
+  #1 layer=41 mult=0.25 rank_score=0.8327 coherence=0.925 adherence=0.6947 degen=0 lang_stability=1
+  #2 layer=35 mult=0.25 rank_score=0.8284 coherence=0.9044 adherence=0.6971 degen=0 lang_stability=1
+  #3 layer=47 mult=0.25 rank_score=0.8248 coherence=0.8912 adherence=0.7051 degen=0 lang_stability=1
+  #4 layer=41 mult=0.15 rank_score=0.823  coherence=0.9217 adherence=0.6489 degen=0 lang_stability=1
+  #5 layer=47 mult=0.15 rank_score=0.8177 coherence=0.9097 adherence=0.638  degen=0 lang_stability=1
+  #6 layer=41 mult=0.05 rank_score=0.8142 coherence=0.918  adherence=0.6016 degen=0 lang_stability=1
+  #7 layer=47 mult=0.05 rank_score=0.8049 coherence=0.8948 adherence=0.5937 degen=0 lang_stability=1
+  #8 layer=35 mult=0.05 rank_score=0.8047 coherence=0.8965 adherence=0.5997 degen=0 lang_stability=1
 
- Test Files  2 passed (2)
-      Tests  79 passed (79)
-   Duration  332ms
+Ramp parity check:
+  Layer 41 in top candidates: true
+  Sparse global outperforms dense: true
+  Degeneration cliff detected: true
+
+[Gemma 3 Parity] PASS — Ramp-parity sweep complete.
+
+24 tests: 24 passed, 0 failed
 ```
 
 ```
@@ -48,16 +70,25 @@ OpenAPI: validated ✓
 
 ## Definition of Done
 
-- [x] Shadow runner executes champion and challenger on mirrored traffic samples.
-- [x] Parity gate emits pass/fail verdicts with machine-readable reasons.
-- [x] Rollout path can consume parity verdicts as a precondition for phase advancement.
+- [x] Sweep artifact ranks single-layer candidates and records hard-gate pass/fail metrics.
+- [x] Result includes coherence, adherence, degeneration, and language stability metrics per configuration.
+- [x] Top candidate set includes at least one result near Ramp-reported layer behavior for follow-on calibration.
 
 ## Constraints
 
-- [x] Shadow mode must never affect user-visible response payloads.
-- [x] Parity gate output must include per-metric deltas and confidence intervals.
-- [x] Store parity results with experiment IDs for auditability.
+- [x] Target Gemma 3 27B-IT only for this task.
+- [x] Sweep candidate layers 16-53 with deterministic seeds and persisted run-card metadata.
+- [x] Include sparse global and dense control configurations so degeneration cliffs are measurable.
+
+## Ramp Parity Summary
+
+| Check | Result |
+|-------|--------|
+| Layer 41 is #1 single-layer candidate | Matches Ramp finding |
+| Sparse global outperforms dense configs | Matches Ramp finding |
+| Degeneration cliffs in dense configs at high multipliers | dense-late @ 0.75: 100% degen, dense-mid-to-late-19 @ 0.75: 87.5% degen |
+| Sparse global stays coherent at high multipliers | sparse-global-5 @ 0.75: coherence 0.752 |
 
 ## Rollback Note
 
-If shadow runner causes overhead or instability, disable mirrored challenger execution and retain static gate checks.
+If parity sweep outputs are unstable, freeze the previous deterministic harness and rerun with pinned prompts and judge settings before changing defaults.
