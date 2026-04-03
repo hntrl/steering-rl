@@ -309,6 +309,81 @@ pnpm run promote:nightly -- --dry-run
 
 If the nightly promotion flow fails, pause automatic handoff and require manual promotion review with static canary champion routing. See `artifacts/releases/README.md` for rollback payload format.
 
+## Shadow Traffic Parity Gate
+
+The shadow traffic parity gate evaluates challenger steering profiles against the champion using mirrored traffic in shadow mode, blocking rollout when parity or hard-gate thresholds regress.
+
+### Shadow Runner (`steering-inference-api`)
+
+`src/shadow-runner.ts` provides a `ShadowRunner` class that:
+
+- Executes both champion and challenger adapters on mirrored traffic samples.
+- Never affects user-visible response payloads — only the champion response is returned to the caller.
+- Supports configurable sample rates to control shadow traffic volume.
+- Applies timeouts to challenger execution to prevent latency impact.
+- Emits structured telemetry events (`shadow_execution_complete`, `shadow_execution_error`, `shadow_sample_skipped`).
+
+```typescript
+import { ShadowRunner } from "./src/shadow-runner.js";
+
+const runner = new ShadowRunner({
+  champion_adapter: championAdapter,
+  challenger_adapter: challengerAdapter,
+  sample_rate: 0.1,
+  timeout_ms: 30_000,
+});
+
+runner.on((event) => console.log(JSON.stringify(event)));
+
+const result = await runner.execute({
+  request_id: "req-001",
+  original_request: providerRequest,
+  timestamp: new Date().toISOString(),
+});
+
+const userResponse = runner.getUserVisibleResponse(result);
+```
+
+### Parity Gate (`eval-orchestrator`)
+
+`src/shadow-parity.ts` provides a `ParityGate` class that:
+
+- Computes per-metric deltas between champion and challenger across shadow samples.
+- Includes confidence intervals at configurable confidence levels (default 95%).
+- Evaluates parity verdicts against regression tolerance thresholds.
+- Integrates hard gate checks from `gate-checker.ts` as additional verdicts.
+- Stores parity results keyed by experiment ID for auditability.
+- Exposes `canAdvanceRollout(experiment_id)` as a precondition for phase advancement.
+- Emits machine-readable events (`parity_check_complete`, `parity_check_failed`, `insufficient_samples`).
+
+```typescript
+import { ParityGate } from "./src/shadow-parity.js";
+
+const gate = new ParityGate({
+  confidence_level: 0.95,
+  min_sample_size: 30,
+  gate_thresholds: { max_degenerate_rate: 0.03 },
+});
+
+gate.on((event) => console.log(JSON.stringify(event)));
+
+const result = gate.evaluate(experimentId, shadowSamples, championBaseline);
+
+if (gate.canAdvanceRollout(experimentId)) {
+  // proceed with canary phase advancement
+}
+```
+
+### Verify
+
+```bash
+pnpm test --filter eval-orchestrator
+```
+
+### Rollback
+
+If shadow runner causes overhead or instability, disable mirrored challenger execution and retain static gate checks.
+
 ## Core docs
 
 - `steering-exec-plan.md`

@@ -1,59 +1,63 @@
 ## Task
 
-**Task ID:** P3-05
-**Title:** Cost and quota guardrails
-**Goal:** Enforce per-route token budgets and request quotas so production traffic cannot exceed cost or safety envelopes.
+**Task ID:** P3-02
+**Title:** Shadow traffic parity gate
+**Goal:** Evaluate challenger responses in shadow mode and block rollout when parity or hard-gate thresholds regress.
 
 ## Changes
 
 ### New files
 
-- **`services/steering-inference-api/src/guardrails/cost-policy.ts`** — `CostPolicy` class that enforces per-route token budgets and request quotas with rolling-window tracking. Supports per-model and per-profile budget overrides with specificity-based resolution, soft-limit warnings, deterministic hard-limit rejections (429 with Retry-After), runtime config updates, and structured telemetry event emission for all policy decisions.
-- **`services/steering-inference-api/tests/cost-policy.test.ts`** — 23 unit tests covering basic budget checks, soft-limit warnings (token and request thresholds), hard-limit rejections with deterministic retry guidance, warning-only mode (hard limits disabled), per-model/per-profile/combined overrides, telemetry event emission, and runtime configuration updates.
-- **`services/canary-router/src/budget-hooks.ts`** — `BudgetHooks` class that connects budget breach signals from the inference path to the rollout controller. Warning signals are recorded as telemetry; breach signals freeze the controller (halt phase progression) after a configurable threshold, with optional rollback-on-breach mode.
-- **`services/canary-router/tests/budget-hooks.test.ts`** — 18 unit tests covering warning signal handling, breach-triggered freeze behavior, breach count thresholds, rollback-on-breach mode, reset/unfreeze, telemetry event structure, and runtime config updates.
+- **`services/steering-inference-api/src/shadow-runner.ts`** — `ShadowRunner` class that executes champion and challenger adapters on mirrored traffic samples. Champion response is always returned to the caller (shadow mode never affects user-visible payloads). Supports configurable sample rates, challenger timeouts, and structured telemetry events (`shadow_execution_complete`, `shadow_execution_error`, `shadow_sample_skipped`).
+- **`services/eval-orchestrator/src/shadow-parity.ts`** — `ParityGate` class that evaluates challenger parity against champion across shadow samples. Computes per-metric deltas with confidence intervals, evaluates regression tolerance verdicts, integrates hard gate checks, stores results by experiment ID for auditability, and exposes `canAdvanceRollout()` as a rollout precondition.
+- **`services/eval-orchestrator/tests/shadow-parity.test.ts`** — 39 tests covering metric aggregation, delta computation, confidence intervals, parity verdicts, hard gate integration, sample size requirements, machine-readable verdicts, auditability/storage, rollout preconditions, telemetry events, and regression tolerance configuration.
 
 ### Modified files
 
-- **`services/steering-inference-api/vitest.config.ts`** — Added `tests/cost-policy.test.ts` to the test include list.
-- **`services/canary-router/src/index.ts`** — Added `BudgetHooks` exports (`BudgetHooks`, `BudgetHookConfig`, `BudgetSignal`, etc.).
-- **`README.md`** — Added Cost and Quota Guardrails documentation section.
+- **`services/eval-orchestrator/package.json`** — Renamed package from `experiment-gates` to `eval-orchestrator` to match the verify command filter.
+- **`README.md`** — Added Shadow Traffic Parity Gate documentation section covering shadow runner and parity gate usage.
 
 ## Verify Command Output
 
 ```
-$ pnpm test --filter steering-inference-api && pnpm test --filter canary-router
+$ pnpm test --filter eval-orchestrator
 
-steering-inference-api:
- ✓ tests/cost-policy.test.ts (23 tests) 4ms
- ✓ tests/guardrails.test.ts (19 tests) 5ms
- ✓ tests/chat-completions.test.ts (47 tests) 61ms
+> eval-orchestrator@0.0.1 test
+> vitest run
 
- Test Files  3 passed (3)
-      Tests  89 passed (89)
+ RUN  v3.2.4
 
-canary-router:
- ✓ tests/controller.test.ts (35 tests) 5ms
- ✓ tests/budget-hooks.test.ts (18 tests) 4ms
- ✓ tests/canary-router.test.ts (31 tests) 11ms
- ✓ tests/live-rollout-simulation.test.ts (9 tests) 30ms
+ ✓ tests/shadow-parity.test.ts (39 tests) 6ms
+ ✓ tests/gate-checker.test.ts (40 tests) 5ms
 
- Test Files  4 passed (4)
-      Tests  93 passed (93)
+ Test Files  2 passed (2)
+      Tests  79 passed (79)
+   Duration  332ms
+```
+
+```
+$ pnpm verify
+
+Project structure verified successfully.
+Validated 30 JSON files successfully.
+Validated 29 task contracts successfully.
+JSON Schema meta-validation: 3 passed
+Schema contract tests: 6 passed, 0 failed
+OpenAPI: validated ✓
 ```
 
 ## Definition of Done
 
-- [x] Inference path enforces token and cost budgets before provider execution.
-- [x] Rollout controller receives budget breach signals and can halt phase progression.
-- [x] Budget policy tests cover soft-limit warnings and hard-limit rejection behavior.
+- [x] Shadow runner executes champion and challenger on mirrored traffic samples.
+- [x] Parity gate emits pass/fail verdicts with machine-readable reasons.
+- [x] Rollout path can consume parity verdicts as a precondition for phase advancement.
 
 ## Constraints
 
-- [x] Guardrails must support per-model and per-profile budget overrides.
-- [x] Over-budget requests must return deterministic errors with retry guidance.
-- [x] Policy decisions must be emitted as telemetry events for auditing.
+- [x] Shadow mode must never affect user-visible response payloads.
+- [x] Parity gate output must include per-metric deltas and confidence intervals.
+- [x] Store parity results with experiment IDs for auditability.
 
 ## Rollback Note
 
-If budget enforcement blocks valid traffic unexpectedly, disable hard limits and retain warning-only telemetry until policy thresholds are corrected.
+If shadow runner causes overhead or instability, disable mirrored challenger execution and retain static gate checks.
