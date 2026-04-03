@@ -11,6 +11,8 @@ import {
   upsertRun,
   isPidAlive,
 } from "./lib/state.mjs";
+import { deleteMergedBranches } from "./lib/branch-cleanup.mjs";
+import { defaultWorktreeBase, pruneStaleWorktrees } from "./lib/worktree.mjs";
 
 function parseArgs(argv) {
   const args = {
@@ -149,6 +151,21 @@ async function reconcileMergedPrs(args, token, logDir, langsmithProject, stateDi
       });
     }
   }
+
+  deleteMergedBranches(args.repo, Array.isArray(mergedPrs) ? mergedPrs : [], {
+    dryRun: args.dryRun,
+    token,
+  });
+}
+
+async function reconcileStaleWorktrees(args, stateDir) {
+  const runs = await readRuns(stateDir);
+  const activeTaskIds = runs
+    .filter((run) => run.status === "running")
+    .map((run) => run.task_id);
+
+  const repoRoot = process.env.REPO_ROOT || process.cwd();
+  pruneStaleWorktrees(repoRoot, activeTaskIds, { dryRun: args.dryRun });
 }
 
 async function reconcileDeadWorkers(args, token, logDir, langsmithProject, stateDir) {
@@ -245,6 +262,7 @@ async function main() {
   while (true) {
     await reconcileMergedPrs(args, token, logDir, langsmithProject, stateDir);
     await reconcileDeadWorkers(args, token, logDir, langsmithProject, stateDir);
+    await reconcileStaleWorktrees(args, stateDir);
 
     if (args.once) {
       break;

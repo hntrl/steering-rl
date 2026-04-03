@@ -80,6 +80,20 @@ If a previous dry run or crash leaves a task lock behind, clear locks:
 bash scripts/agent-daemon.sh reset
 ```
 
+### Automatic branch cleanup
+
+After reconciliation the reconciler automatically deletes remote branches for merged task PRs and prunes stale local worktrees that no longer have active runs.
+
+Only branches matching `agent/P0-##` or `agent/P1-##` with merged PRs are deleted. Protected branches (`main`, `master`) are never touched.
+
+Use `DRY_RUN=1` (or `--dry-run`) to preview planned deletions without mutating git state:
+
+```bash
+DRY_RUN=1 bash scripts/agent-daemon.sh once
+```
+
+Set `REPO_ROOT` to point at the bare repo root when running the reconciler outside a worktree.
+
 ### Orchestration logs
 
 - Runtime state: `~/.agentd/state/runs.json`
