@@ -19,7 +19,7 @@ After setup, you should be able to:
 You need five runtime components.
 
 - `agent-supervisor`: accepts task contracts, schedules runs, tracks lifecycle.
-- `agent-runner`: executes coding agent sessions in isolated workspaces.
+- `agent-runner`: executes Deep Agents CLI (`deepagents -n`) sessions in isolated workspaces.
 - `policy-gateway`: validates allowed tools/actions and blocks unsafe behavior.
 - `artifact-store`: stores patches, logs, test output, and decision artifacts.
 - `telemetry-pipeline`: sends structured traces/events to LangSmith.
@@ -40,7 +40,9 @@ Minimum env set for supervisor and runners:
 
 ```bash
 LANGSMITH_API_KEY=
-LANGSMITH_PROJECT=steer-build-agents-staging
+LANGCHAIN_API_KEY=$LANGSMITH_API_KEY
+LANGCHAIN_TRACING=true
+DEEPAGENTS_LANGSMITH_PROJECT=steer-build-agents-staging
 LANGSMITH_WORKSPACE_ID=
 
 GIT_REMOTE_URL=
@@ -53,6 +55,8 @@ ALLOW_NETWORK_HOSTS=github.com,api.smith.langchain.com
 BLOCK_DESTRUCTIVE_GIT=true
 
 VERIFY_COMMAND=pnpm verify
+DEEPAGENTS_AGENT=build
+DEEPAGENTS_SHELL_ALLOW_LIST=cd,git,pnpm,npm,node,npx,python3,bash,sh,ls,cat,head,tail,grep,pwd,which,cp,mv,rm,mkdir,touch
 ```
 
 Optional but recommended:
@@ -109,20 +113,20 @@ Rules:
 
 Capture both event logs and trace metadata.
 
+Event schema source of truth: `schemas/agent-event.schema.json`.
+
 ## 7.1 Event schema
 
 Emit these events:
 
-- `task_received`
-- `run_started`
-- `tool_call_started`
-- `tool_call_finished`
-- `file_changed`
+- `task_selected`
+- `dispatch_started`
+- `agent_started`
+- `agent_finished`
 - `verify_started`
 - `verify_finished`
-- `review_started`
-- `review_finished`
-- `pr_created`
+- `pr_opened`
+- `issue_labeled`
 - `run_completed`
 - `run_failed`
 
@@ -130,18 +134,26 @@ Event payload shape:
 
 ```json
 {
+  "schema_version": 1,
+  "event_id": "evt_01...",
   "timestamp": "2026-04-02T20:11:00Z",
+  "source": "worker",
+  "repo": "hntrl/steering-rl",
   "task_id": "P0-05",
+  "issue_number": 5,
   "run_id": "run_01HV...",
-  "event_type": "tool_call_finished",
-  "tool_name": "bash",
-  "duration_ms": 3482,
+  "event_type": "verify_finished",
+  "attempt": 1,
+  "branch": "agent/P0-05",
+  "worktree": "/Users/hunter/worktrees/steering-rl/P0-05",
   "status": "ok",
-  "exit_code": 0,
-  "files_touched": ["src/steering/engine.ts"],
-  "metadata": {
-    "agent_version": "coder-v3",
-    "branch": "agent/P0-05/run_01HV"
+  "data": {
+    "verify_command": "pnpm test --filter steering-engine",
+    "exit_code": 0
+  },
+  "langsmith": {
+    "project": "steer-build-agents-staging",
+    "correlation_key": "P0-05:run_01HV"
   }
 }
 ```

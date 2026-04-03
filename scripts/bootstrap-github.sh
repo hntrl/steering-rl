@@ -61,6 +61,7 @@ echo "Creating labels..."
 gh label create "agent-ready" --color "5319e7" --description "Ready for coding-agent execution" --force --repo "$repo"
 gh label create "status:todo" --color "d4c5f9" --description "Not started" --force --repo "$repo"
 gh label create "status:in-progress" --color "fbca04" --description "In progress" --force --repo "$repo"
+gh label create "status:in-review" --color "bfd4f2" --description "Awaiting human review" --force --repo "$repo"
 gh label create "status:blocked" --color "b60205" --description "Blocked" --force --repo "$repo"
 
 gh label create "priority:P0" --color "d73a4a" --description "Highest priority" --force --repo "$repo"
@@ -85,17 +86,27 @@ if gh api "repos/$repo/branches/main" >/dev/null 2>&1; then
   echo "Configuring branch protection for main..."
   gh api --method PUT "repos/$repo/branches/main/protection" \
     -H "Accept: application/vnd.github+json" \
-    -f required_status_checks.strict=true \
-    -f required_status_checks.contexts[]="verify" \
-    -f enforce_admins=false \
-    -f required_pull_request_reviews.dismiss_stale_reviews=true \
-    -f required_pull_request_reviews.required_approving_review_count=1 \
-    -f required_conversation_resolution=true \
-    -f restrictions=
+    --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": ["verify"]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": {
+    "dismiss_stale_reviews": true,
+    "required_approving_review_count": 1
+  },
+  "required_conversation_resolution": true,
+  "restrictions": null
+}
+JSON
 else
   echo "Skipped branch protection: main branch not on remote yet."
   echo "After first push, run:"
-  echo "gh api --method PUT repos/$repo/branches/main/protection -H 'Accept: application/vnd.github+json' -f required_status_checks.strict=true -f required_status_checks.contexts[]=verify -f enforce_admins=false -f required_pull_request_reviews.dismiss_stale_reviews=true -f required_pull_request_reviews.required_approving_review_count=1 -f required_conversation_resolution=true -f restrictions="
+  echo "gh api --method PUT repos/$repo/branches/main/protection -H 'Accept: application/vnd.github+json' --input - <<'JSON'"
+  echo "{\"required_status_checks\":{\"strict\":true,\"contexts\":[\"verify\"]},\"enforce_admins\":false,\"required_pull_request_reviews\":{\"dismiss_stale_reviews\":true,\"required_approving_review_count\":1},\"required_conversation_resolution\":true,\"restrictions\":null}"
+  echo "JSON"
 fi
 
 echo "Bootstrap complete."

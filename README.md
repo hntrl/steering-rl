@@ -8,6 +8,7 @@ This repository contains planning docs and the agent execution scaffolding to bu
    - GitHub CLI (`gh`) authenticated to your account
    - Node.js 20+
    - pnpm
+   - Deep Agents CLI (`deepagents`) installed and configured
 
 2. Validate task contracts:
 
@@ -22,6 +23,97 @@ bash scripts/bootstrap-github.sh
 ```
 
 4. Assign tasks from `tasks/` to coding agents.
+
+## Self-running agent orchestration
+
+The repository includes a supervisor/worker/reconciler loop that dispatches tasks from GitHub issues and runs Deep Agents in isolated git worktrees.
+
+### Required environment variables
+
+```bash
+export REPO="hntrl/steering-rl"
+export BASE_BRANCH="main"
+export EXECUTOR_BOT_TOKEN="..."
+
+export LANGSMITH_API_KEY="..."
+export LANGCHAIN_API_KEY="$LANGSMITH_API_KEY"
+export LANGCHAIN_TRACING=true
+export DEEPAGENTS_LANGSMITH_PROJECT="steer-build-agents-staging"
+
+export DEEPAGENTS_AGENT="build"
+export DEEPAGENTS_SHELL_ALLOW_LIST="cd,git,pnpm,npm,node,npx,python3,bash,sh,ls,cat,head,tail,grep,pwd,which,cp,mv,rm,mkdir,touch"
+
+export MAX_PARALLEL=2
+export POLL_INTERVAL_SECONDS=60
+export MAX_AGENT_RUNTIME_MINUTES=20
+```
+
+Use an explicit command list for coding workflows. Do not set `DEEPAGENTS_SHELL_ALLOW_LIST=all`.
+
+### Run once
+
+```bash
+bash scripts/agent-daemon.sh once
+```
+
+`once` runs in the foreground and prints dispatch output directly to your terminal.
+Use `DRY_RUN=1` to test dispatch logic without labeling issues or starting workers.
+
+```bash
+DRY_RUN=1 bash scripts/agent-daemon.sh once
+```
+
+### Run continuously
+
+```bash
+bash scripts/agent-daemon.sh start
+bash scripts/agent-daemon.sh status
+bash scripts/agent-daemon.sh follow
+bash scripts/agent-daemon.sh stop
+```
+
+### Reset stale locks
+
+If a previous dry run or crash leaves a task lock behind, clear locks:
+
+```bash
+bash scripts/agent-daemon.sh reset
+```
+
+### Orchestration logs
+
+- Runtime state: `~/.agentd/state/runs.json`
+- Structured events: `~/.agentd/logs/events.jsonl`
+- Worker logs: `~/.agentd/logs/workers/`
+
+For live Deep Agents progress, tail the latest worker log shown in the supervisor dispatch output.
+
+### Quick troubleshooting
+
+- `once` runs a single dispatch cycle and exits; `status` will still show stopped afterward.
+- If nothing dispatches, run `bash scripts/agent-daemon.sh reset` and retry.
+- Check latest run status in `~/.agentd/state/runs.json`.
+- Open `log_path` from the run record to see the exact Deep Agents error.
+
+Run the doctor script for a consolidated diagnosis:
+
+```bash
+pnpm agent:doctor
+```
+
+The doctor report includes explicit requeue commands when root dependency tasks are blocked.
+
+Optional smoke test (30s timeout):
+
+```bash
+node scripts/agent-doctor.mjs --smoke
+```
+
+Event payloads follow `schemas/agent-event.schema.json`.
+
+```bash
+pnpm events:validate
+```
 
 ## Core docs
 

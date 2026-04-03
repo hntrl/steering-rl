@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steering-rl.local/schemas/agent-event.schema.json",
+  "title": "Agent Orchestration Event",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "timestamp",
+    "source",
+    "event_type",
+    "repo",
+    "task_id",
+    "run_id",
+    "status",
+    "data"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "supervisor",
+        "worker",
+        "reconciler"
+      ]
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "task_selected",
+        "dispatch_started",
+        "agent_started",
+        "agent_finished",
+        "verify_started",
+        "verify_finished",
+        "pr_opened",
+        "issue_labeled",
+        "run_failed",
+        "run_completed"
+      ]
+    },
+    "repo": {
+      "type": "string",
+      "minLength": 3
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^P[01]-\\d{2}$"
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "branch": {
+      "type": "string"
+    },
+    "worktree": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "skipped"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "langsmith": {
+      "type": "object",
+      "required": [
+        "project",
+        "correlation_key"
+      ],
+      "properties": {
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation_key": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
