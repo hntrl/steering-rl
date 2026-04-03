@@ -5,6 +5,7 @@ import { access, readdir, readFile } from "node:fs/promises";
 import { runCommand } from "./lib/command.mjs";
 import { ghJson, issueTaskIdFromTitle } from "./lib/github.mjs";
 import {
+  canonicalizeRuns,
   defaultLogDir,
   defaultStateDir,
   isPidAlive,
@@ -351,6 +352,8 @@ async function checkRuntimeState(results) {
     addResult(results, "fail", "Run state file", error.message || String(error));
     return;
   }
+
+  runs = canonicalizeRuns(runs);
 
   if (runs.length === 0) {
     addResult(results, "warn", "Run history", "no runs recorded");

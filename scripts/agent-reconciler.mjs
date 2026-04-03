@@ -10,6 +10,7 @@ import {
   releaseTaskLock,
   upsertRun,
   isPidAlive,
+  writeCanonicalizedRuns,
 } from "./lib/state.mjs";
 import { deleteMergedBranches } from "./lib/branch-cleanup.mjs";
 import { defaultWorktreeBase, pruneStaleWorktrees } from "./lib/worktree.mjs";
@@ -262,6 +263,8 @@ async function main() {
   while (true) {
     await reconcileMergedPrs(args, token, logDir, langsmithProject, stateDir);
     await reconcileDeadWorkers(args, token, logDir, langsmithProject, stateDir);
+    await reconcileStaleWorktrees(args, stateDir);
+    await writeCanonicalizedRuns(stateDir);
     await reconcileStaleWorktrees(args, stateDir);
 
     if (args.once) {

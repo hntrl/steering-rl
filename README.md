@@ -102,6 +102,18 @@ Set `REPO_ROOT` to point at the bare repo root when running the reconciler outsi
 
 For live Deep Agents progress, tail the latest worker log shown in the supervisor dispatch output.
 
+### Conflict recovery
+
+The worker automatically syncs its branch with the base branch before each agent run. When merge conflicts occur:
+
+- **Lockfile-only conflicts** (`pnpm-lock.yaml`): Resolved automatically by checking out the upstream version and running `pnpm install --lockfile-only`. Non-lockfile task changes are preserved.
+- **Non-lockfile conflicts**: The rebase is aborted and the run exits with a retry status. No task changes are discarded.
+- **Repeated failures**: After 3 failed conflict-recovery attempts, the issue is marked `status:blocked` with an actionable remediation comment describing manual resolution steps.
+
+Conflict recovery emits `branch_sync` and `conflict_recovery` events to `events.jsonl`.
+
+To disable automatic lockfile resolution, set `DISABLE_LOCKFILE_AUTO_RESOLVE=1` in the worker environment and fall back to manual conflict resolution.
+
 ### Quick troubleshooting
 
 - `once` runs a single dispatch cycle and exits; `status` will still show stopped afterward.

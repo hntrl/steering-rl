@@ -12,6 +12,8 @@ const EVENT_TYPES = new Set([
   "issue_labeled",
   "run_failed",
   "run_completed",
+  "branch_sync",
+  "conflict_recovery",
 ]);
 
 const SOURCES = new Set(["supervisor", "worker", "reconciler"]);
