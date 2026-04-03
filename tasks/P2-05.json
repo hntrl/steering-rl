@@ -1,0 +1,34 @@
+{
+  "task_id": "P2-05",
+  "title": "Vector trainer service for calibration artifacts",
+  "goal": "Add a vector-trainer service that produces versioned concept vector bundles and preset calibration tables from training corpora.",
+  "inputs": [
+    "model-and-layers.md",
+    "services/steering-engine/src/steering/vector-resolver.ts",
+    "contracts/schema/profile.json"
+  ],
+  "expected_outputs": [
+    "services/vector-trainer/package.json",
+    "services/vector-trainer/src/train.ts",
+    "services/vector-trainer/src/export.ts",
+    "services/vector-trainer/tests/vector-trainer.test.ts"
+  ],
+  "constraints": [
+    "Artifact output must include vector_bundle_id, model revision, and seed metadata.",
+    "Training pipeline must be deterministic for the same dataset and seed.",
+    "Export format must be directly resolvable by steering-engine vector resolver."
+  ],
+  "verify_command": "pnpm test --filter vector-trainer",
+  "definition_of_done": [
+    "Vector trainer emits versioned bundle artifacts and preset calibration tables.",
+    "Generated artifacts pass schema validation and resolve in runtime tests.",
+    "Training/export behavior is covered by deterministic unit tests."
+  ],
+  "rollback_note": "If training artifacts are unstable, pin runtime to previous vector bundle IDs and disable automatic bundle promotion.",
+  "dependencies": [
+    "P0-05"
+  ],
+  "priority": "P2",
+  "track": "control-plane",
+  "risk_level": "medium"
+}

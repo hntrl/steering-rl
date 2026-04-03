@@ -1,0 +1,35 @@
+{
+  "task_id": "P2-02",
+  "title": "Gemma 4 Stage C multi-layer calibration sweep",
+  "goal": "Implement Stage C jobs that combine top Stage B layers into sparse multi-layer profiles and calibrate preset multipliers.",
+  "inputs": [
+    "jobs/sweeps/gemma4-stage-b.ts",
+    "artifacts/sweeps/README.md",
+    "steering-exec-plan.md"
+  ],
+  "expected_outputs": [
+    "jobs/sweeps/gemma4-stage-c.ts",
+    "jobs/sweeps/tests/gemma4-stage-c.test.ts",
+    "artifacts/sweeps/gemma4-stage-c-result.json",
+    "artifacts/sweeps/README.md"
+  ],
+  "constraints": [
+    "Use deterministic seeds and persist config used for each candidate.",
+    "Build multi-layer candidates from Stage B passing layers only.",
+    "Emit profile bundles consumable by Stage D and canary routing."
+  ],
+  "verify_command": "pnpm run sweep:gemma4:stageC",
+  "definition_of_done": [
+    "Stage C produces ranked multi-layer candidates with preset tables.",
+    "Output artifact includes model revision, dataset version, and selected layer sets.",
+    "Stage C run is reproducible from committed config and seed values."
+  ],
+  "rollback_note": "If Stage C quality regresses, freeze Stage B winners as temporary challengers and defer multi-layer promotion until calibration is corrected.",
+  "dependencies": [
+    "P0-12",
+    "P2-05"
+  ],
+  "priority": "P2",
+  "track": "evaluation",
+  "risk_level": "high"
+}

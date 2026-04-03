@@ -46,7 +46,7 @@ function sleep(ms) {
 }
 
 function taskIdFromBranch(branch) {
-  const match = String(branch || "").match(/^agent\/(P[01]-\d{2})$/);
+  const match = String(branch || "").match(/^agent\/(P[0-2]-\d{2})$/);
   return match ? match[1] : null;
 }
 

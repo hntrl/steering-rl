@@ -1,6 +1,6 @@
 import { runCommand } from "./command.mjs";
 
-const TASK_BRANCH_PATTERN = /^agent\/P[01]-\d{2}$/;
+const TASK_BRANCH_PATTERN = /^agent\/P[0-2]-\d{2}$/;
 const PROTECTED_BRANCHES = new Set(["main", "master"]);
 
 export function isTaskBranch(branch) {

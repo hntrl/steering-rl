@@ -1,0 +1,35 @@
+{
+  "task_id": "P2-04",
+  "title": "LangSmith trace ingestion for dataset mining",
+  "goal": "Connect trace-miner to live LangSmith trace exports so nightly datasets are sourced from real production failure traces.",
+  "inputs": [
+    "services/trace-miner/src/pipeline.ts",
+    "services/tracing/src/index.ts",
+    "feedback-loop.md"
+  ],
+  "expected_outputs": [
+    "services/trace-miner/src/langsmith-source.ts",
+    "services/trace-miner/src/cli.ts",
+    "services/trace-miner/tests/pipeline.test.ts",
+    "services/trace-miner/README.md"
+  ],
+  "constraints": [
+    "Support bounded time windows and pagination for trace fetches.",
+    "Sanitize sensitive metadata before dataset export.",
+    "Provide dry-run mode that does not mutate remote datasets or local artifacts unless requested."
+  ],
+  "verify_command": "pnpm test --filter trace-miner && pnpm run trace-miner:dry-run -- --source langsmith",
+  "definition_of_done": [
+    "Trace miner can pull candidate failures from LangSmith projects by environment.",
+    "Exported examples remain deterministic after sanitization and dedup.",
+    "CLI supports source selection and time-window arguments for nightly jobs."
+  ],
+  "rollback_note": "If live ingestion quality drops, disable LangSmith source mode and continue generating datasets from last known-good snapshot inputs.",
+  "dependencies": [
+    "P0-07",
+    "P0-10"
+  ],
+  "priority": "P2",
+  "track": "feedback-loop",
+  "risk_level": "medium"
+}

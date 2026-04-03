@@ -1,0 +1,36 @@
+{
+  "task_id": "P2-06",
+  "title": "Nightly promotion pipeline and canary handoff",
+  "goal": "Automate end-to-end nightly promotion flow from trace ingestion through Stage D decision output and canary configuration handoff.",
+  "inputs": [
+    "services/trace-miner/src/pipeline.ts",
+    "jobs/sweeps/gemma4-stage-d.ts",
+    "services/canary-router/src/router.ts"
+  ],
+  "expected_outputs": [
+    "jobs/nightly/promote.ts",
+    "jobs/nightly/tests/promote.test.ts",
+    "artifacts/releases/README.md",
+    "README.md"
+  ],
+  "constraints": [
+    "Pipeline must support dry-run mode with no production mutations.",
+    "Promotion handoff must include rollback payload for canary-router.",
+    "Fail pipeline when required evidence artifacts are missing or stale."
+  ],
+  "verify_command": "pnpm run promote:nightly -- --dry-run",
+  "definition_of_done": [
+    "Nightly job orchestrates dataset mining, experiment scoring, and promotion handoff in one workflow.",
+    "Release artifact includes decision summary, evidence links, and rollback instructions.",
+    "Dry-run execution is reproducible and safe for CI or scheduled checks."
+  ],
+  "rollback_note": "If nightly promotion flow fails, pause automatic handoff and require manual promotion review with static canary champion routing.",
+  "dependencies": [
+    "P2-03",
+    "P2-04",
+    "P0-11"
+  ],
+  "priority": "P2",
+  "track": "rollout",
+  "risk_level": "high"
+}

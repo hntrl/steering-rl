@@ -84,7 +84,7 @@ bash scripts/agent-daemon.sh reset
 
 After reconciliation the reconciler automatically deletes remote branches for merged task PRs and prunes stale local worktrees that no longer have active runs.
 
-Only branches matching `agent/P0-##` or `agent/P1-##` with merged PRs are deleted. Protected branches (`main`, `master`) are never touched.
+Only branches matching `agent/P0-##`, `agent/P1-##`, or `agent/P2-##` with merged PRs are deleted. Protected branches (`main`, `master`) are never touched.
 
 Use `DRY_RUN=1` (or `--dry-run`) to preview planned deletions without mutating git state:
 

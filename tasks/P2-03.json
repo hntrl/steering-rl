@@ -1,0 +1,36 @@
+{
+  "task_id": "P2-03",
+  "title": "Gemma 4 Stage D champion-challenger bake-off",
+  "goal": "Run Stage D head-to-head experiments and emit machine-readable promotion decisions for Gemma 4 challengers versus current champion.",
+  "inputs": [
+    "jobs/sweeps/gemma4-stage-c.ts",
+    "services/eval-orchestrator/src/gate-checker.ts",
+    "feedback-loop.md"
+  ],
+  "expected_outputs": [
+    "jobs/sweeps/gemma4-stage-d.ts",
+    "jobs/sweeps/tests/gemma4-stage-d.test.ts",
+    "artifacts/sweeps/gemma4-stage-d-decision.json",
+    "services/eval-orchestrator/src/gate-checker.ts"
+  ],
+  "constraints": [
+    "Apply hard gates before weighted rank comparisons.",
+    "Record evidence bundle IDs and experiment IDs in decision artifacts.",
+    "Fail closed when required metrics are missing."
+  ],
+  "verify_command": "pnpm run sweep:gemma4:stageD && pnpm test --filter experiment-gates",
+  "definition_of_done": [
+    "Stage D produces explicit promote or hold decision artifacts.",
+    "Decision output includes hard-gate reasons and rank component breakdown.",
+    "Champion and challenger comparisons are reproducible from stored artifacts."
+  ],
+  "rollback_note": "If Stage D decisioning is inconsistent, lock promotion decisions to hold and require manual review using raw experiment metrics.",
+  "dependencies": [
+    "P2-01",
+    "P2-02",
+    "P0-09"
+  ],
+  "priority": "P2",
+  "track": "evaluation",
+  "risk_level": "high"
+}
