@@ -1,35 +1,36 @@
 {
   "task_id": "P3-06",
-  "title": "Security and compliance hardening",
-  "goal": "Harden trace, dataset, and rollout data handling with redaction, retention controls, and auditable access safeguards.",
+  "title": "Gemma 4 transfer protocol (post-parity)",
+  "goal": "Define a controlled Gemma 4 transfer protocol that reuses Gemma 3 methodology artifacts without changing defaults until transfer gates pass.",
   "inputs": [
-    "services/trace-miner/src/langsmith-source.ts",
-    "services/trace-miner/src/pipeline.ts",
-    "agent-instrumentation-spec.md"
+    "artifacts/sweeps/gemma3-ramp-parity-report.md",
+    "artifacts/sweeps/gemma3-acceptance-gates.json",
+    "model-and-layers.md",
+    "open-models-post.md"
   ],
   "expected_outputs": [
-    "services/trace-miner/src/redaction-policy.ts",
-    "services/trace-miner/tests/redaction-policy.test.ts",
-    "docs/security/data-retention-policy.md",
-    "README.md"
+    "jobs/sweeps/gemma4-transfer-protocol.ts",
+    "jobs/sweeps/tests/gemma4-transfer-protocol.test.ts",
+    "artifacts/sweeps/gemma4-transfer-checklist.md",
+    "artifacts/sweeps/gemma4-transfer-gates.json"
   ],
   "constraints": [
-    "Redaction policy must cover prompt content, metadata, and known secret token patterns.",
-    "Retention windows must be configurable by environment.",
-    "Access/audit logs must never contain raw secret values."
+    "Gemma 4 transfer runs must be tagged as experimental and non-default.",
+    "Transfer gate thresholds must be at least as strict as Gemma 3 parity acceptance gates.",
+    "Protocol must include rollback-to-Gemma-3 methodology path if transfer fails."
   ],
-  "verify_command": "pnpm test --filter trace-miner",
+  "verify_command": "node --test jobs/sweeps/tests/gemma4-transfer-protocol.test.ts",
   "definition_of_done": [
-    "Trace and dataset exports apply centralized redaction policy before persistence.",
-    "Retention policy documentation defines defaults and operational overrides.",
-    "Security tests cover secret redaction and retention-boundary behavior."
+    "Transfer checklist defines exact prerequisites before running Gemma 4 sweeps.",
+    "Transfer gate artifact encodes pass/fail thresholds and decision logic.",
+    "Protocol test validates gate evaluation and fallback-to-Gemma-3 behavior."
   ],
-  "rollback_note": "If hardened redaction drops critical debugging fields, fall back to previous policy with manual review and immediate patch follow-up.",
+  "rollback_note": "If Gemma 4 transfer signals regressions, stop transfer experiments and continue with Gemma 3 calibrated profiles as the sole default.",
   "dependencies": [
-    "P3-04",
-    "P2-04"
+    "P3-03"
   ],
-  "priority": "P3",
-  "track": "control-plane",
-  "risk_level": "high"
+  "phase": "methodology",
+  "priority": "medium",
+  "track": "evaluation",
+  "risk_level": "medium"
 }

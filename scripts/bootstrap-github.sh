@@ -64,10 +64,14 @@ gh label create "status:in-progress" --color "fbca04" --description "In progress
 gh label create "status:in-review" --color "bfd4f2" --description "Awaiting human review" --force --repo "$repo"
 gh label create "status:blocked" --color "b60205" --description "Blocked" --force --repo "$repo"
 
-gh label create "priority:P0" --color "d73a4a" --description "Highest priority" --force --repo "$repo"
-gh label create "priority:P1" --color "f9d0c4" --description "Secondary priority" --force --repo "$repo"
-gh label create "priority:P2" --color "fbca04" --description "Tertiary priority" --force --repo "$repo"
-gh label create "priority:P3" --color "5319e7" --description "Production rollout priority" --force --repo "$repo"
+gh label create "priority:high" --color "d73a4a" --description "Highest urgency" --force --repo "$repo"
+gh label create "priority:medium" --color "fbca04" --description "Medium urgency" --force --repo "$repo"
+gh label create "priority:low" --color "0e8a16" --description "Lower urgency" --force --repo "$repo"
+
+gh label create "phase:foundation" --color "1d76db" --description "Core foundation phase" --force --repo "$repo"
+gh label create "phase:hardening" --color "5319e7" --description "Reliability hardening phase" --force --repo "$repo"
+gh label create "phase:methodology" --color "0052cc" --description "Steering methodology phase" --force --repo "$repo"
+gh label create "phase:rollout" --color "b60205" --description "Production rollout phase" --force --repo "$repo"
 
 gh label create "track:runtime" --color "0e8a16" --description "Runtime and inference" --force --repo "$repo"
 gh label create "track:control-plane" --color "1d76db" --description "Contracts and profile registry" --force --repo "$repo"

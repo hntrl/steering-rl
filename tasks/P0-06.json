@@ -27,7 +27,8 @@
   "dependencies": [
     "P0-05"
   ],
-  "priority": "P0",
+  "phase": "foundation",
+  "priority": "high",
   "track": "runtime",
   "risk_level": "high"
 }

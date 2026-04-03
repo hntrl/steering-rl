@@ -1,34 +1,36 @@
 {
   "task_id": "P3-04",
-  "title": "Production SLO dashboard and alert tuning",
-  "goal": "Define SLOs and ship alerting dashboards for degeneration, correctness, latency, and cost with low false-positive rates.",
+  "title": "Gemma 3 sparse-layer preset calibration",
+  "goal": "Calibrate sparse multi-layer configurations and low/medium/strong presets on Gemma 3 to match Ramp-style quality tradeoffs.",
   "inputs": [
-    "agent-instrumentation-spec.md",
-    "services/telemetry/src",
-    "services/tracing/src"
+    "jobs/sweeps/gemma3-stage-b-parity.ts",
+    "artifacts/sweeps/gemma3-stage-b-parity.json",
+    "model-and-layers.md",
+    "ramp-post.md"
   ],
   "expected_outputs": [
-    "dashboards/production/slo-dashboard.json",
-    "dashboards/production/alert-rules.yaml",
-    "docs/incident-runbook.md",
-    "README.md"
+    "jobs/sweeps/gemma3-stage-c-parity.ts",
+    "jobs/sweeps/tests/gemma3-stage-c-parity.test.ts",
+    "artifacts/sweeps/gemma3-stage-c-parity.json",
+    "artifacts/sweeps/gemma3-preset-calibration.json"
   ],
   "constraints": [
-    "Alert thresholds must map directly to rollout rollback thresholds.",
-    "Runbook must include on-call triage and rollback drill steps.",
-    "Dashboard queries must avoid exposing sensitive user content."
+    "Build multi-layer candidates only from Stage B hard-gate passers.",
+    "Include sparse global candidate near 23/29/35/41/47 and at least two dense control groups.",
+    "Record safe operating bands and cliff boundaries for each candidate configuration."
   ],
-  "verify_command": "pnpm test --filter telemetry && pnpm test --filter tracing",
+  "verify_command": "pnpm run sweep:gemma3:stageC",
   "definition_of_done": [
-    "SLO dashboard includes correctness, coherence, degeneration, latency, and cost panels.",
-    "Alert pack defines warning and critical severities with documented responders.",
-    "Incident runbook includes a validated rollback drill checklist."
+    "Stage C artifact ranks sparse multi-layer candidates and includes preset calibration table.",
+    "Calibrated presets define low, medium, and strong operating points with degeneration thresholds.",
+    "Result includes clear fallback configuration and single-layer fallback behavior."
   ],
-  "rollback_note": "If alert tuning is noisy, revert to conservative thresholds and keep dashboards in observe-only mode until calibrated.",
+  "rollback_note": "If preset calibration is inconsistent across concepts, freeze to medium-only preset and rerun calibration with expanded concept coverage.",
   "dependencies": [
-    "P3-01"
+    "P3-02"
   ],
-  "priority": "P3",
-  "track": "feedback-loop",
-  "risk_level": "medium"
+  "phase": "methodology",
+  "priority": "high",
+  "track": "evaluation",
+  "risk_level": "high"
 }

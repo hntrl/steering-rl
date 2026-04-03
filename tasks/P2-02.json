@@ -29,7 +29,8 @@
     "P0-12",
     "P2-05"
   ],
-  "priority": "P2",
+  "phase": "methodology",
+  "priority": "high",
   "track": "evaluation",
   "risk_level": "high"
 }

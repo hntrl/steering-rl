@@ -104,6 +104,7 @@ function createIssue(repo, task, dryRun) {
   const title = `[${task.task_id}] ${task.title}`;
   const labels = [
     `priority:${task.priority}`,
+    `phase:${task.phase}`,
     `track:${task.track}`,
     `risk:${task.risk_level}`,
     "status:todo",
