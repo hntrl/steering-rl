@@ -1,0 +1,35 @@
+{
+  "task_id": "P3-05",
+  "title": "Cost and quota guardrails",
+  "goal": "Enforce per-route token budgets and request quotas so production traffic cannot exceed cost or safety envelopes.",
+  "inputs": [
+    "services/steering-inference-api/src/providers/model-adapter.ts",
+    "services/canary-router/src/controller.ts",
+    "feedback-loop.md"
+  ],
+  "expected_outputs": [
+    "services/steering-inference-api/src/guardrails/cost-policy.ts",
+    "services/steering-inference-api/tests/cost-policy.test.ts",
+    "services/canary-router/src/budget-hooks.ts",
+    "README.md"
+  ],
+  "constraints": [
+    "Guardrails must support per-model and per-profile budget overrides.",
+    "Over-budget requests must return deterministic errors with retry guidance.",
+    "Policy decisions must be emitted as telemetry events for auditing."
+  ],
+  "verify_command": "pnpm test --filter steering-inference-api && pnpm test --filter canary-router",
+  "definition_of_done": [
+    "Inference path enforces token and cost budgets before provider execution.",
+    "Rollout controller receives budget breach signals and can halt phase progression.",
+    "Budget policy tests cover soft-limit warnings and hard-limit rejection behavior."
+  ],
+  "rollback_note": "If budget enforcement blocks valid traffic unexpectedly, disable hard limits and retain warning-only telemetry until policy thresholds are corrected.",
+  "dependencies": [
+    "P3-01",
+    "P2-01"
+  ],
+  "priority": "P3",
+  "track": "runtime",
+  "risk_level": "high"
+}

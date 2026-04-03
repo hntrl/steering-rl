@@ -1,0 +1,35 @@
+{
+  "task_id": "P3-02",
+  "title": "Shadow traffic parity gate",
+  "goal": "Evaluate challenger responses in shadow mode and block rollout when parity or hard-gate thresholds regress.",
+  "inputs": [
+    "services/steering-inference-api/src/providers/model-adapter.ts",
+    "services/eval-orchestrator/src/gate-checker.ts",
+    "feedback-loop.md"
+  ],
+  "expected_outputs": [
+    "services/eval-orchestrator/src/shadow-parity.ts",
+    "services/eval-orchestrator/tests/shadow-parity.test.ts",
+    "services/steering-inference-api/src/shadow-runner.ts",
+    "README.md"
+  ],
+  "constraints": [
+    "Shadow mode must never affect user-visible response payloads.",
+    "Parity gate output must include per-metric deltas and confidence intervals.",
+    "Store parity results with experiment IDs for auditability."
+  ],
+  "verify_command": "pnpm test --filter eval-orchestrator",
+  "definition_of_done": [
+    "Shadow runner executes champion and challenger on mirrored traffic samples.",
+    "Parity gate emits pass/fail verdicts with machine-readable reasons.",
+    "Rollout path can consume parity verdicts as a precondition for phase advancement."
+  ],
+  "rollback_note": "If shadow runner causes overhead or instability, disable mirrored challenger execution and retain static gate checks.",
+  "dependencies": [
+    "P3-01",
+    "P2-03"
+  ],
+  "priority": "P3",
+  "track": "evaluation",
+  "risk_level": "high"
+}

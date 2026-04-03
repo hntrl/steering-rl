@@ -67,6 +67,7 @@ gh label create "status:blocked" --color "b60205" --description "Blocked" --forc
 gh label create "priority:P0" --color "d73a4a" --description "Highest priority" --force --repo "$repo"
 gh label create "priority:P1" --color "f9d0c4" --description "Secondary priority" --force --repo "$repo"
 gh label create "priority:P2" --color "fbca04" --description "Tertiary priority" --force --repo "$repo"
+gh label create "priority:P3" --color "5319e7" --description "Production rollout priority" --force --repo "$repo"
 
 gh label create "track:runtime" --color "0e8a16" --description "Runtime and inference" --force --repo "$repo"
 gh label create "track:control-plane" --color "1d76db" --description "Contracts and profile registry" --force --repo "$repo"

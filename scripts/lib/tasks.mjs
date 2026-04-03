@@ -2,7 +2,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 export function taskIdFromTitle(title) {
-  const match = String(title).match(/\[(P[0-2]-\d{2})\]/);
+  const match = String(title).match(/\[(P[0-3]-\d{2})\]/);
   return match ? match[1] : null;
 }
 

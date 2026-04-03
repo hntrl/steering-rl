@@ -1,0 +1,34 @@
+{
+  "task_id": "P3-01",
+  "title": "Live canary rollout controller",
+  "goal": "Promote challenger profiles with live traffic phases and strict automatic rollback policies using production metrics.",
+  "inputs": [
+    "services/canary-router/src/router.ts",
+    "services/canary-router/src/rollback-policy.ts",
+    "jobs/nightly/promote.ts"
+  ],
+  "expected_outputs": [
+    "services/canary-router/src/controller.ts",
+    "services/canary-router/tests/controller.test.ts",
+    "services/canary-router/tests/live-rollout-simulation.test.ts",
+    "README.md"
+  ],
+  "constraints": [
+    "Rollout phase changes must be configurable without redeploy.",
+    "Rollback must trigger on degenerate rate, p95 latency, and error-rate thresholds.",
+    "Kill switch must always route to baseline no-steering path."
+  ],
+  "verify_command": "pnpm test --filter canary-router && pnpm run canary:simulation",
+  "definition_of_done": [
+    "Controller supports phase progression 10/50/100 with runtime config updates.",
+    "Rollback decision latency meets SLA under simulation tests.",
+    "Controller emits machine-readable events for phase changes and rollback actions."
+  ],
+  "rollback_note": "If controller logic is unstable, freeze rollout at champion-only routing and disable automatic phase advancement.",
+  "dependencies": [
+    "P2-06"
+  ],
+  "priority": "P3",
+  "track": "rollout",
+  "risk_level": "high"
+}

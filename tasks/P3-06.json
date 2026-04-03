@@ -1,0 +1,35 @@
+{
+  "task_id": "P3-06",
+  "title": "Security and compliance hardening",
+  "goal": "Harden trace, dataset, and rollout data handling with redaction, retention controls, and auditable access safeguards.",
+  "inputs": [
+    "services/trace-miner/src/langsmith-source.ts",
+    "services/trace-miner/src/pipeline.ts",
+    "agent-instrumentation-spec.md"
+  ],
+  "expected_outputs": [
+    "services/trace-miner/src/redaction-policy.ts",
+    "services/trace-miner/tests/redaction-policy.test.ts",
+    "docs/security/data-retention-policy.md",
+    "README.md"
+  ],
+  "constraints": [
+    "Redaction policy must cover prompt content, metadata, and known secret token patterns.",
+    "Retention windows must be configurable by environment.",
+    "Access/audit logs must never contain raw secret values."
+  ],
+  "verify_command": "pnpm test --filter trace-miner",
+  "definition_of_done": [
+    "Trace and dataset exports apply centralized redaction policy before persistence.",
+    "Retention policy documentation defines defaults and operational overrides.",
+    "Security tests cover secret redaction and retention-boundary behavior."
+  ],
+  "rollback_note": "If hardened redaction drops critical debugging fields, fall back to previous policy with manual review and immediate patch follow-up.",
+  "dependencies": [
+    "P3-04",
+    "P2-04"
+  ],
+  "priority": "P3",
+  "track": "control-plane",
+  "risk_level": "high"
+}
