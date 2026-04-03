@@ -5,3 +5,6 @@ node_modules/
 dist/
 coverage/
 tmp/
+
+# Generated sweep artifacts (reproducible via pnpm run sweep:gemma4:*)
+artifacts/sweeps/*.json
