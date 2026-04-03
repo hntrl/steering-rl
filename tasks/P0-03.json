@@ -1,0 +1,33 @@
+{
+  "task_id": "P0-03",
+  "title": "Profile registry read API",
+  "goal": "Serve immutable steering profile versions for runtime resolution.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-delivery-plan.md",
+    "contracts/schema/profile.json"
+  ],
+  "expected_outputs": [
+    "services/profile-registry/src/routes/get-profile.ts",
+    "services/profile-registry/src/routes/get-manifest.ts",
+    "services/profile-registry/tests/profile-registry.test.ts"
+  ],
+  "constraints": [
+    "No mutable profile updates through read endpoints.",
+    "Return structured JSON error bodies.",
+    "Include model revision, layers, presets, and vector bundle id."
+  ],
+  "verify_command": "pnpm test --filter profile-registry",
+  "definition_of_done": [
+    "GET /profiles/{profile_id} returns exact profile payload.",
+    "GET /profiles/{profile_id}/manifest returns immutable release metadata.",
+    "Unknown profile_id returns 404 with structured error body."
+  ],
+  "rollback_note": "If registry responses are incompatible, route requests to last known stable profile snapshot and disable new profile aliases.",
+  "dependencies": [
+    "P0-01"
+  ],
+  "priority": "P0",
+  "track": "control-plane",
+  "risk_level": "medium"
+}

@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-04",
+  "title": "Steering inference API skeleton",
+  "goal": "Implement OpenAI-compatible chat completions endpoint with validated steering payload support.",
+  "inputs": [
+    "contracts/openapi/inference.yaml",
+    "feedback-loop.md",
+    "agent-delivery-plan.md"
+  ],
+  "expected_outputs": [
+    "services/steering-inference-api/src/routes/chat-completions.ts",
+    "services/steering-inference-api/src/validation/steering-request.ts",
+    "services/steering-inference-api/tests/chat-completions.test.ts"
+  ],
+  "constraints": [
+    "Preserve OpenAI response compatibility for baseline fields.",
+    "Reject invalid steering payloads with deterministic 4xx responses.",
+    "Include resolved profile metadata in response extensions."
+  ],
+  "verify_command": "pnpm test --filter steering-inference-api",
+  "definition_of_done": [
+    "POST /v1/chat/completions accepts messages and steering config.",
+    "profile_id resolution succeeds against profile registry.",
+    "Invalid payload test matrix passes."
+  ],
+  "rollback_note": "If compatibility breaks clients, disable steering parser path and serve baseline OpenAI-compatible response shape only.",
+  "dependencies": [
+    "P0-01",
+    "P0-03"
+  ],
+  "priority": "P0",
+  "track": "runtime",
+  "risk_level": "medium"
+}

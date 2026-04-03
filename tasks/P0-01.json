@@ -1,0 +1,33 @@
+{
+  "task_id": "P0-01",
+  "title": "Contracts package",
+  "goal": "Define immutable API and schema contracts used by runtime, telemetry, and gate checker services.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-delivery-plan.md",
+    "agent-instrumentation-spec.md"
+  ],
+  "expected_outputs": [
+    "contracts/openapi/inference.yaml",
+    "contracts/schema/profile.json",
+    "contracts/schema/run-metadata.json",
+    "contracts/schema/experiment-decision.json"
+  ],
+  "constraints": [
+    "Keep contracts backward compatible unless explicitly versioned.",
+    "Do not add runtime dependencies.",
+    "Document required fields and examples in schema descriptions."
+  ],
+  "verify_command": "pnpm contracts:lint && pnpm contracts:test",
+  "definition_of_done": [
+    "OpenAPI validates with zero errors.",
+    "JSON schemas validate representative fixtures.",
+    "Steering payload includes concept, preset, layers, multiplier, and profile_id.",
+    "Run metadata schema contains required fields from feedback-loop.md."
+  ],
+  "rollback_note": "If contract changes break downstream consumers, revert to previous contract version and keep old endpoint behavior behind compatibility mode.",
+  "dependencies": [],
+  "priority": "P0",
+  "track": "control-plane",
+  "risk_level": "medium"
+}

@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-09",
+  "title": "Experiment gate checker",
+  "goal": "Compute promotion decisions using hard gates and weighted ranking.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-delivery-plan.md",
+    "contracts/schema/experiment-decision.json"
+  ],
+  "expected_outputs": [
+    "services/eval-orchestrator/src/gate-checker.ts",
+    "services/eval-orchestrator/src/score.ts",
+    "services/eval-orchestrator/tests/gate-checker.test.ts"
+  ],
+  "constraints": [
+    "Apply hard gates before ranking.",
+    "Emit machine-readable pass/fail reasons.",
+    "Keep weights configurable outside core logic."
+  ],
+  "verify_command": "pnpm test --filter experiment-gates",
+  "definition_of_done": [
+    "Candidate fails when any hard gate fails.",
+    "Rank score generated for all hard-pass candidates.",
+    "Decision output validates against experiment decision schema."
+  ],
+  "rollback_note": "If gate checker output is incorrect, freeze promotions and revert to previous decision engine build.",
+  "dependencies": [
+    "P0-01",
+    "P0-08"
+  ],
+  "priority": "P0",
+  "track": "evaluation",
+  "risk_level": "medium"
+}

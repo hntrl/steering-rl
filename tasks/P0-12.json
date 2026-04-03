@@ -1,0 +1,35 @@
+{
+  "task_id": "P0-12",
+  "title": "Gemma 4 Stage A/B automation",
+  "goal": "Automate Gemma 4 baseline and single-layer sweep campaigns for challenger profile generation.",
+  "inputs": [
+    "model-and-layers.md",
+    "steering-exec-plan.md",
+    "feedback-loop.md"
+  ],
+  "expected_outputs": [
+    "jobs/sweeps/gemma4-stage-a.ts",
+    "jobs/sweeps/gemma4-stage-b.ts",
+    "jobs/sweeps/tests/gemma4-sweeps.test.ts",
+    "artifacts/sweeps/README.md"
+  ],
+  "constraints": [
+    "Record model revision and dataset version in outputs.",
+    "Keep sweep config reproducible and seed-controlled.",
+    "Output artifacts must be ingestible by gate checker."
+  ],
+  "verify_command": "pnpm run sweep:gemma4:stageA && pnpm run sweep:gemma4:stageB",
+  "definition_of_done": [
+    "Stage A baseline run completes with reproducible config.",
+    "Stage B single-layer sweep emits per-layer quality metrics.",
+    "Results include challenger profile candidates for Stage C."
+  ],
+  "rollback_note": "If sweep automation fails, pause Gemma 4 promotion work and keep Gemma 3 champion profile active.",
+  "dependencies": [
+    "P0-08",
+    "P0-09"
+  ],
+  "priority": "P0",
+  "track": "evaluation",
+  "risk_level": "medium"
+}

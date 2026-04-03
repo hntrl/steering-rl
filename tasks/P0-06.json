@@ -1,0 +1,33 @@
+{
+  "task_id": "P0-06",
+  "title": "Runtime guardrails and backoff ladder",
+  "goal": "Detect degeneration and apply safe backoff transitions within a single request.",
+  "inputs": [
+    "model-and-layers.md",
+    "feedback-loop.md",
+    "agent-delivery-plan.md"
+  ],
+  "expected_outputs": [
+    "services/steering-inference-api/src/guardrails/detector.ts",
+    "services/steering-inference-api/src/guardrails/backoff-policy.ts",
+    "services/steering-inference-api/tests/guardrails.test.ts"
+  ],
+  "constraints": [
+    "Backoff applies only to active request context.",
+    "No infinite retry loops.",
+    "Emit telemetry for each backoff step."
+  ],
+  "verify_command": "pnpm test --filter steering-guardrails",
+  "definition_of_done": [
+    "Guardrail fixtures trigger expected backoff sequence.",
+    "Final metadata reflects post-backoff active layers.",
+    "Fallback to no-steering mode is supported."
+  ],
+  "rollback_note": "If guardrails are overly aggressive, revert to monitor-only mode while preserving telemetry emission.",
+  "dependencies": [
+    "P0-05"
+  ],
+  "priority": "P0",
+  "track": "runtime",
+  "risk_level": "high"
+}

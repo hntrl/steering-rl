@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-11",
+  "title": "Canary router and rollback automation",
+  "goal": "Implement staged traffic splitting and automatic rollback for challenger profile deployments.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-delivery-plan.md",
+    "agent-instrumentation-spec.md"
+  ],
+  "expected_outputs": [
+    "services/canary-router/src/router.ts",
+    "services/canary-router/src/rollback-policy.ts",
+    "services/canary-router/tests/canary-router.test.ts"
+  ],
+  "constraints": [
+    "Canary percentages must be config-driven.",
+    "Rollback triggers must be time-window based.",
+    "Kill switch must disable steering safely."
+  ],
+  "verify_command": "pnpm test --filter rollout && pnpm run canary:simulation",
+  "definition_of_done": [
+    "10/50/100 rollout phases are supported.",
+    "Auto rollback triggers on configured threshold breaches.",
+    "Kill switch forces baseline no-steering path."
+  ],
+  "rollback_note": "If canary logic is unstable, route 100% traffic to champion profile and disable challenger routing.",
+  "dependencies": [
+    "P0-06",
+    "P0-09"
+  ],
+  "priority": "P0",
+  "track": "rollout",
+  "risk_level": "high"
+}

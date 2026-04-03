@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-07",
+  "title": "LangSmith tracing middleware",
+  "goal": "Enforce required trace metadata and tags for all eval and runtime requests.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-instrumentation-spec.md",
+    "contracts/schema/run-metadata.json"
+  ],
+  "expected_outputs": [
+    "services/telemetry/src/langsmith-middleware.ts",
+    "services/telemetry/src/metadata-validator.ts",
+    "services/telemetry/tests/langsmith-middleware.test.ts"
+  ],
+  "constraints": [
+    "Reject or fail-safe when required metadata is missing in eval/prod mode.",
+    "Tag naming must match feedback-loop.md conventions.",
+    "Do not log secrets in trace metadata."
+  ],
+  "verify_command": "pnpm test --filter telemetry && pnpm test --filter tracing",
+  "definition_of_done": [
+    "Traces include required profile and vector fields.",
+    "Tag sets include model, profile, preset, and suite labels.",
+    "Missing metadata paths are covered by tests."
+  ],
+  "rollback_note": "If middleware blocks traffic unexpectedly, switch to warn-only mode while preserving trace writes.",
+  "dependencies": [
+    "P0-01",
+    "P0-04"
+  ],
+  "priority": "P0",
+  "track": "feedback-loop",
+  "risk_level": "medium"
+}

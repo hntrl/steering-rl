@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-10",
+  "title": "Trace mining to dataset pipeline",
+  "goal": "Build a nightly job that turns production failure traces into curated eval dataset artifacts.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-instrumentation-spec.md",
+    "steering-exec-plan.md"
+  ],
+  "expected_outputs": [
+    "services/trace-miner/src/pipeline.ts",
+    "services/trace-miner/src/dedup.ts",
+    "services/trace-miner/tests/pipeline.test.ts",
+    "services/trace-miner/README.md"
+  ],
+  "constraints": [
+    "Use deterministic dedup and clustering strategy.",
+    "Dataset naming must follow steer-{suite}-{source}-v{date}.",
+    "No secrets in exported artifacts."
+  ],
+  "verify_command": "pnpm test --filter trace-miner && pnpm run trace-miner:dry-run",
+  "definition_of_done": [
+    "Pipeline exports dataset artifact and summary changelog.",
+    "Dry run mode works without mutating remote datasets.",
+    "Dedup behavior covered by tests."
+  ],
+  "rollback_note": "If pipeline quality is poor, pause dataset promotion and keep previous stable dataset versions pinned in eval runs.",
+  "dependencies": [
+    "P0-07"
+  ],
+  "priority": "P0",
+  "track": "feedback-loop",
+  "risk_level": "medium"
+}

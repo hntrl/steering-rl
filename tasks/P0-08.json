@@ -1,0 +1,38 @@
+{
+  "task_id": "P0-08",
+  "title": "DeepAgentsJS steering eval suite",
+  "goal": "Create a steering-specific eval suite with LangSmith experiment reporting.",
+  "inputs": [
+    "feedback-loop.md",
+    "agent-delivery-plan.md",
+    "steering-exec-plan.md"
+  ],
+  "expected_outputs": [
+    "evals/steering/package.json",
+    "evals/steering/vitest.config.ts",
+    "evals/steering/index.test.ts",
+    "evals/steering/datasets/core.json",
+    "evals/steering/datasets/edge.json",
+    "evals/steering/datasets/degeneracy.json",
+    "evals/steering/datasets/migration.json"
+  ],
+  "constraints": [
+    "Keep tests deterministic where possible.",
+    "Report experiment data to steer-evals-{env} project names.",
+    "Separate steering metrics from baseline harness metrics."
+  ],
+  "verify_command": "EVAL_RUNNER=<runner> pnpm --filter @deepagents/eval-steering test:eval",
+  "definition_of_done": [
+    "Suite executes through existing eval harness interface.",
+    "Core and migration datasets include representative cases.",
+    "At least one test asserts steering-specific behavior metrics."
+  ],
+  "rollback_note": "If eval suite is unstable, disable new suite in required CI checks and keep it in nightly mode until stabilized.",
+  "dependencies": [
+    "P0-02",
+    "P0-07"
+  ],
+  "priority": "P0",
+  "track": "evaluation",
+  "risk_level": "medium"
+}

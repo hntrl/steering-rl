@@ -1,0 +1,34 @@
+{
+  "task_id": "P0-05",
+  "title": "Layer injection engine",
+  "goal": "Apply steering vectors at configured transformer layers with deterministic behavior.",
+  "inputs": [
+    "model-and-layers.md",
+    "feedback-loop.md",
+    "contracts/schema/profile.json"
+  ],
+  "expected_outputs": [
+    "services/steering-inference-api/src/steering/layer-injection.ts",
+    "services/steering-inference-api/src/steering/vector-resolver.ts",
+    "services/steering-inference-api/tests/layer-injection.test.ts"
+  ],
+  "constraints": [
+    "Inject only in requested layers.",
+    "Support single-layer and multi-layer configs.",
+    "No-steering code path must remain baseline-stable in tests."
+  ],
+  "verify_command": "pnpm test --filter steering-engine",
+  "definition_of_done": [
+    "Injection layer targeting is covered by unit tests.",
+    "Uniform and per-layer multipliers are supported.",
+    "Runtime emits active layer list and effective multiplier metadata."
+  ],
+  "rollback_note": "If generation quality regresses, disable injection by feature flag and keep API contract unchanged.",
+  "dependencies": [
+    "P0-01",
+    "P0-04"
+  ],
+  "priority": "P0",
+  "track": "runtime",
+  "risk_level": "high"
+}

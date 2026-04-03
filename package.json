@@ -1,0 +1,12 @@
+{
+  "name": "steering-rl",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "tasks:validate": "node scripts/validate-task-contracts.mjs",
+    "tasks:issues": "node scripts/create-gh-issues.mjs",
+    "verify": "pnpm tasks:validate"
+  }
+}

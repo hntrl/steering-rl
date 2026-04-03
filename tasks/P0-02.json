@@ -1,0 +1,33 @@
+{
+  "task_id": "P0-02",
+  "title": "Local dev and CI gate setup",
+  "goal": "Create a deterministic verify pipeline that blocks merges when quality gates fail.",
+  "inputs": [
+    "agent-delivery-plan.md",
+    "agent-instrumentation-spec.md",
+    ".github/workflows/verify.yml"
+  ],
+  "expected_outputs": [
+    "package.json",
+    ".github/workflows/verify.yml",
+    ".github/pull_request_template.md"
+  ],
+  "constraints": [
+    "Use one root verify command.",
+    "Do not bypass checks in CI.",
+    "Keep workflow runtime under 10 minutes for baseline checks."
+  ],
+  "verify_command": "pnpm verify",
+  "definition_of_done": [
+    "pnpm verify succeeds locally.",
+    "CI runs verify on pull requests.",
+    "PR template includes verify output and rollback note sections."
+  ],
+  "rollback_note": "If CI gate blocks all development, temporarily revert workflow change and keep local verify command until workflow is fixed.",
+  "dependencies": [
+    "P0-01"
+  ],
+  "priority": "P0",
+  "track": "control-plane",
+  "risk_level": "low"
+}
