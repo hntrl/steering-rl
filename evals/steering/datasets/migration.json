@@ -1,0 +1,117 @@
+{
+  "suite": "migration",
+  "description": "Model-switch delta cases for Gemma 3 to Gemma 4 migration validation.",
+  "version": "v20260402",
+  "cases": [
+    {
+      "id": "mig-001",
+      "description": "Gemma 3 champion baseline – medium preset coherence anchor",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Summarize the key ideas of stoic philosophy." }
+        ],
+        "steering": {
+          "concept": "clarity",
+          "preset": "medium",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        },
+        "model_family": "gemma-3-27b-it"
+      },
+      "expected": {
+        "coherence_min": 0.8,
+        "concept_adherence_min": 0.6,
+        "degenerate": false,
+        "language_shift": false,
+        "is_baseline_anchor": true
+      }
+    },
+    {
+      "id": "mig-002",
+      "description": "Gemma 4 challenger – same prompt, expect non-inferior coherence",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Summarize the key ideas of stoic philosophy." }
+        ],
+        "steering": {
+          "concept": "clarity",
+          "preset": "medium",
+          "profile_id": "steer-gemma4-candidate-v1",
+          "layers": [20, 26, 32, 38, 44]
+        },
+        "model_family": "gemma-4-27b-it"
+      },
+      "expected": {
+        "coherence_min": 0.78,
+        "concept_adherence_min": 0.55,
+        "degenerate": false,
+        "language_shift": false,
+        "non_inferior_to": "mig-001"
+      }
+    },
+    {
+      "id": "mig-003",
+      "description": "Gemma 4 no-steering baseline quality check",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "What causes tides on Earth?" }
+        ],
+        "steering": null,
+        "model_family": "gemma-4-27b-it"
+      },
+      "expected": {
+        "coherence_min": 0.85,
+        "correctness_min": 0.9,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "mig-004",
+      "description": "Gemma 3 vs Gemma 4 strong preset degeneration comparison",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Write a creative story about a robot learning to paint." }
+        ],
+        "steering": {
+          "concept": "creativity",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        },
+        "model_family": "gemma-3-27b-it"
+      },
+      "expected": {
+        "degenerate": false,
+        "coherence_min": 0.7,
+        "concept_adherence_min": 0.7,
+        "language_shift": false,
+        "is_baseline_anchor": true
+      }
+    },
+    {
+      "id": "mig-005",
+      "description": "Gemma 4 challenger on creative steering – must meet hard gates",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Write a creative story about a robot learning to paint." }
+        ],
+        "steering": {
+          "concept": "creativity",
+          "preset": "strong",
+          "profile_id": "steer-gemma4-candidate-v1",
+          "layers": [20, 26, 32, 38, 44]
+        },
+        "model_family": "gemma-4-27b-it"
+      },
+      "expected": {
+        "degenerate": false,
+        "coherence_min": 0.68,
+        "concept_adherence_min": 0.65,
+        "language_shift": false,
+        "p95_latency_ratio_max": 1.2,
+        "non_inferior_to": "mig-004"
+      }
+    }
+  ]
+}
