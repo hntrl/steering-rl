@@ -1,0 +1,30 @@
+{
+  "task_id": "P1-01",
+  "title": "Worker no-changes handoff regression tests",
+  "goal": "Ensure the worker treats clean worktrees with ahead commits as review-ready by creating or updating PRs instead of blocking issues.",
+  "inputs": [
+    "scripts/agent-worker.mjs",
+    "scripts/lib/worktree.mjs",
+    "README.md"
+  ],
+  "expected_outputs": [
+    "scripts/agent-worker.mjs",
+    "scripts/tests/agent-worker-no-changes.test.mjs",
+    "README.md"
+  ],
+  "constraints": [
+    "Cover both clean+ahead and clean+not-ahead scenarios.",
+    "Tests must run without live GitHub network calls.",
+    "Preserve existing issue labels and event payload shape."
+  ],
+  "verify_command": "node --test scripts/tests/agent-worker-no-changes.test.mjs",
+  "definition_of_done": [
+    "Worker marks runs ready for review when branch commits exist but working tree is clean.",
+    "Worker keeps no_changes status only when there are no working tree edits and no ahead commits.",
+    "Regression test demonstrates failure on previous blocked behavior."
+  ],
+  "rollback_note": "If this handoff path becomes unstable, disable branch-reuse PR handoff and fall back to manual PR creation while preserving run logs for triage.",
+  "priority": "P1",
+  "track": "runtime",
+  "risk_level": "medium"
+}

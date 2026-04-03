@@ -1,0 +1,34 @@
+{
+  "task_id": "P1-05",
+  "title": "Doctor JSON output and alert thresholds",
+  "goal": "Add machine-readable doctor output and severity thresholds so scheduled health checks can gate and alert automatically.",
+  "inputs": [
+    "scripts/agent-doctor.mjs",
+    "README.md",
+    "schemas/agent-event.schema.json"
+  ],
+  "expected_outputs": [
+    "scripts/agent-doctor.mjs",
+    "schemas/doctor-report.schema.json",
+    "scripts/tests/agent-doctor-json.test.mjs",
+    "README.md"
+  ],
+  "constraints": [
+    "JSON output must include summary counts, per-check detail, and recommended remediation actions.",
+    "Never print raw secret values in text or JSON modes.",
+    "Strict mode must return non-zero exit for configured failure thresholds."
+  ],
+  "verify_command": "node --test scripts/tests/agent-doctor-json.test.mjs",
+  "definition_of_done": [
+    "Doctor supports --format json with a stable schema.",
+    "Doctor supports --strict thresholds suitable for CI and cron alerting.",
+    "Tests validate schema shape and secret-redaction behavior."
+  ],
+  "rollback_note": "If JSON or strict mode causes false alarms, disable strict gating and continue using text-mode doctor checks until thresholds are recalibrated.",
+  "dependencies": [
+    "P1-02"
+  ],
+  "priority": "P1",
+  "track": "feedback-loop",
+  "risk_level": "low"
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "P1-02",
+  "title": "Reconciler canonical run-state cleanup",
+  "goal": "Make reconciliation collapse duplicate task runs into a canonical merged state so stale ready-for-review records do not linger.",
+  "inputs": [
+    "scripts/agent-reconciler.mjs",
+    "scripts/lib/state.mjs",
+    "scripts/agent-doctor.mjs"
+  ],
+  "expected_outputs": [
+    "scripts/agent-reconciler.mjs",
+    "scripts/agent-doctor.mjs",
+    "scripts/tests/reconciler-run-state.test.mjs"
+  ],
+  "constraints": [
+    "Reconciliation must be idempotent across repeated runs.",
+    "Do not mutate unrelated task history entries.",
+    "Prefer merged PR metadata when normalizing status and merged_at fields."
+  ],
+  "verify_command": "node --test scripts/tests/reconciler-run-state.test.mjs",
+  "definition_of_done": [
+    "Only one latest canonical run status remains for each merged task.",
+    "Doctor summary reports ready_for_review as zero after reconciliation for fully merged queues.",
+    "Reconciler tests cover duplicate-run normalization behavior."
+  ],
+  "rollback_note": "If canonicalization causes incorrect history, disable normalization writes and run reconciler in read-only mode until state migration rules are corrected.",
+  "dependencies": [
+    "P1-01"
+  ],
+  "priority": "P1",
+  "track": "control-plane",
+  "risk_level": "medium"
+}
