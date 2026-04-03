@@ -1,0 +1,107 @@
+{
+  "suite": "core",
+  "description": "Canonical high-signal steering evaluation cases for regression testing.",
+  "version": "v20260402",
+  "cases": [
+    {
+      "id": "core-001",
+      "description": "Basic concept adherence with medium preset",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Explain the benefits of renewable energy." }
+        ],
+        "steering": {
+          "concept": "enthusiasm",
+          "preset": "medium",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "concept_adherence_min": 0.6,
+        "coherence_min": 0.8,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "core-002",
+      "description": "Low preset should produce subtle steering effect",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Describe the process of photosynthesis." }
+        ],
+        "steering": {
+          "concept": "formality",
+          "preset": "low",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "concept_adherence_min": 0.3,
+        "coherence_min": 0.85,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "core-003",
+      "description": "Strong preset should produce clear steering with maintained coherence",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Write a summary of the water cycle." }
+        ],
+        "steering": {
+          "concept": "creativity",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "concept_adherence_min": 0.75,
+        "coherence_min": 0.7,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "core-004",
+      "description": "No-steering baseline should remain unaffected",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "What is the capital of France?" }
+        ],
+        "steering": null
+      },
+      "expected": {
+        "coherence_min": 0.9,
+        "degenerate": false,
+        "language_shift": false,
+        "correctness_min": 0.95
+      }
+    },
+    {
+      "id": "core-005",
+      "description": "Single-layer fallback steering at layer 41",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Explain gravity in simple terms." }
+        ],
+        "steering": {
+          "concept": "simplicity",
+          "preset": "medium",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [41]
+        }
+      },
+      "expected": {
+        "concept_adherence_min": 0.5,
+        "coherence_min": 0.8,
+        "degenerate": false,
+        "language_shift": false
+      }
+    }
+  ]
+}

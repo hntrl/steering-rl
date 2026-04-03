@@ -1,0 +1,17 @@
+{
+  "name": "@steering-rl/rollout",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "keywords": ["rollout"],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "canary:simulation": "tsx tests/canary-simulation.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.2.1",
+    "tsx": "^4.19.0"
+  }
+}
