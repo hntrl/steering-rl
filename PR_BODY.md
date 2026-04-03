@@ -1,93 +1,139 @@
 ## Task
 
-**Task ID:** P3-04
-**Title:** Gemma 3 sparse-layer preset calibration
-**Goal:** Calibrate sparse multi-layer configurations and low/medium/strong presets on Gemma 3 to match Ramp-style quality tradeoffs.
+**Task ID:** P3-03
+**Title:** Ramp-parity methodology report and acceptance gates
+**Goal:** Produce a reproducible Gemma 3 parity report that codifies acceptance criteria for matching Ramp-style steering behavior.
 
 ## Changes
 
 ### New files
 
-- **`jobs/sweeps/gemma3-stage-c-parity.ts`** — Stage C multi-layer preset calibration sweep for Gemma 3 27B-IT. Builds multi-layer candidates exclusively from Stage B hard-gate passers. Includes sparse global candidates near [23,29,35,41,47] and at least two dense control groups. Calibrates low/medium/strong presets with safe operating bands, cliff boundaries, and degeneration thresholds per candidate. Produces ranked candidates with profile bundles and a preset calibration table. Includes single-layer fallback configuration at layer 41.
-- **`jobs/sweeps/tests/gemma3-stage-c-parity.test.ts`** — 29 tests covering config construction, layer extraction from Stage B passers, multi-layer calibration, preset tables, safe operating bands, cliff boundaries, degeneration thresholds, preset calibration table, fallback configuration, profile bundles, Stage B passer constraint, and artifact serialization.
+- **`artifacts/sweeps/gemma3-ramp-parity-report.md`** — Full parity report documenting where Gemma 3 behavior matches or diverges from Ramp findings. Includes Stage B single-layer sweep results, Stage C multi-layer calibration results, side-by-side comparison tables, and methodology decision.
+- **`artifacts/sweeps/gemma3-acceptance-gates.json`** — Machine-readable acceptance gate artifact with pass/fail status, rationale, thresholds, and observed values for coherence (≥ 0.80), degeneration (≤ 0.03), and adherence (≥ 0.60). Includes five Ramp parity checks, divergence documentation, and methodology decision with Gemma 4 transfer conditions.
+- **`jobs/sweeps/tests/gemma3-parity-gates.test.ts`** — 39 tests validating acceptance gate structure, threshold values, Ramp parity checks, methodology decision, cross-artifact consistency, divergence documentation, and parity report content.
 
 ### Modified files
 
-- **`package.json`** — Added `sweep:gemma3:stageC` script that runs Stage B → Stage C pipeline and test suite.
+- **`model-and-layers.md`** — Added §13 "Gemma 3 Ramp-parity methodology decision" documenting acceptance gate results, parity status, Gemma 4 transfer readiness conditions, and artifact trail.
 
 ### Generated artifacts (gitignored, produced at runtime)
 
-- **`artifacts/sweeps/gemma3-stage-c-parity.json`** — Stage C result with ranked multi-layer candidates, per-combination metrics, preset calibration table, and fallback configuration.
-- **`artifacts/sweeps/gemma3-preset-calibration.json`** — Standalone preset calibration table with low/medium/strong operating points, degeneration thresholds, safe bands, and fallback behavior.
+- **`artifacts/sweeps/gemma3-stage-b-parity.json`** — Stage B single-layer sweep data (228 configs, 8 hard-gate passers).
+- **`artifacts/sweeps/gemma3-stage-c-parity.json`** — Stage C multi-layer calibration data (27 combos, 18 passers, 3 candidates).
+- **`artifacts/sweeps/gemma3-preset-calibration.json`** — Preset calibration table.
 
 ## Verify Command Output
 
 ```
-$ pnpm run sweep:gemma3:stageC
+$ node --test jobs/sweeps/tests/gemma3-parity-gates.test.ts
 
-[Gemma 3 Stage C] Running Stage B first to get candidates...
-[Gemma 3 Stage C] Stage B complete — 8 candidates
-[Gemma 3 Stage C] Model: gemma-3-27b-it (rev gemma-3-27b-it-qat-q4_0-gguf-2025-03-15)
-[Gemma 3 Stage C] Dataset: steer-core-ramp-parity-v1
-[Gemma 3 Stage C] Seed: 20250316
-[Gemma 3 Stage C] Top-K layers: 8
-[Gemma 3 Stage C] Combination sizes: 3, 4, 5
+▶ Gemma 3 Parity Gates — Artifact existence
+  ✔ acceptance gates JSON artifact exists
+  ✔ parity report markdown artifact exists
+  ✔ Stage B sweep artifact exists
+  ✔ Stage C sweep artifact exists
+✔ Gemma 3 Parity Gates — Artifact existence
 
-[Gemma 3 Stage C] Combinations tested: 27
-[Gemma 3 Stage C] Passed hard gates: 18
-[Gemma 3 Stage C] Multi-layer candidates: 3
+▶ Gemma 3 Parity Gates — Acceptance gate structure
+  ✔ acceptance gates JSON is valid and parseable
+  ✔ acceptance gates include coherence gate
+  ✔ acceptance gates include degeneration gate
+  ✔ acceptance gates include adherence gate
+✔ Gemma 3 Parity Gates — Acceptance gate structure
 
-Ranked multi-layer candidates:
-  #1 [sparse-global] layers=[35,41,47] preset={low:0.08,med:0.25,strong:0.3} rank_score=0.8393
-  #2 [dense-control] layers=[35,41,47] preset={low:0.08,med:0.25,strong:0.3} rank_score=0.8393
-  #3 [dense-control] layers=[35,41,47] preset={low:0.08,med:0.25,strong:0.3} rank_score=0.8393
+▶ Gemma 3 Parity Gates — Threshold validation
+  ✔ coherence threshold is reasonable (>= 0.70)
+  ✔ degeneration threshold is strict (<= 0.05)
+  ✔ adherence threshold requires meaningful lift (>= 0.50)
+  ✔ coherence observed values are within valid range [0, 1]
+  ✔ degeneration best observed is non-negative
+✔ Gemma 3 Parity Gates — Threshold validation
 
-Preset calibration summary (top candidate):
-  low:    mult=[0.05,0.08] coherence_floor=0.9216 degen_ceiling=0
-  medium: mult=[0.15,0.25] coherence_floor=0.9254 degen_ceiling=0
-  strong: mult=[0.30,0.40] coherence_floor=0.9034 degen_ceiling=0
-  Cliffs: Coherence cliff at multiplier 0.55 (drop 0.056)
+▶ Gemma 3 Parity Gates — Ramp parity checks
+  ✔ includes layer 41 best single-layer check
+  ✔ includes sparse global outperforms dense check
+  ✔ includes degeneration cliffs detected check
+  ✔ includes default layer set match check
+  ✔ includes no language reversion check
+  ✔ all parity checks reference Ramp claims
+✔ Gemma 3 Parity Gates — Ramp parity checks
 
-Fallback: layer 41 (presets: low=0.08, med=0.20, strong=0.35)
+▶ Gemma 3 Parity Gates — Methodology decision
+  ✔ methodology decision is present
+  ✔ methodology decision includes rollback note
+  ✔ Gemma 4 transfer not proposed if any gate fails
+  ✔ Gemma 4 transfer only proposed when all gates pass
+  ✔ methodology decision lists conditions for Gemma 4 transfer
+✔ Gemma 3 Parity Gates — Methodology decision
 
-[Gemma 3 Stage C] PASS — preset calibration complete.
+▶ Gemma 3 Parity Gates — Cross-artifact consistency
+  ✔ acceptance gates reference Stage B artifact
+  ✔ acceptance gates reference Stage C artifact
+  ✔ acceptance gates reference Ramp post
+  ✔ Stage B result confirms layer 41 in top candidates
+  ✔ Stage B result confirms sparse global outperforms dense
+  ✔ Stage B result confirms degeneration cliff detected
+  ✔ Stage C result references Stage B
+  ✔ Stage C result has candidates with coherence above gate threshold
+  ✔ Stage C result has candidates with degeneration below gate threshold
+✔ Gemma 3 Parity Gates — Cross-artifact consistency
 
-29 tests: 29 passed, 0 failed
+▶ Gemma 3 Parity Gates — Divergence documentation
+  ✔ acceptance gates document divergences from Ramp findings
+  ✔ each divergence has finding, severity, and explanation
+✔ Gemma 3 Parity Gates — Divergence documentation
+
+▶ Gemma 3 Parity Gates — Parity report content
+  ✔ parity report references Ramp findings
+  ✔ parity report documents acceptance gates
+  ✔ parity report includes methodology decision
+  ✔ parity report includes coherence, degeneration, and adherence analysis
+✔ Gemma 3 Parity Gates — Parity report content
+
+ℹ tests 39
+ℹ suites 8
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ duration_ms 146.93ms
 ```
 
 ```
-$ pnpm verify:structure && pnpm verify:json && pnpm verify:tasks
+$ pnpm verify
 
 Project structure verified successfully.
 Validated 30 JSON files successfully.
 Validated 29 task contracts successfully.
+contracts/openapi/inference.yaml: validated — Your API description is valid. 🎉
+Schema: profile — 2/2 passed
+Schema: run-metadata — 2/2 passed
+Schema: experiment-decision — 2/2 passed
+Results: 6 passed, 0 failed
 ```
-
-Note: `pnpm verify` full run fails on `contracts:lint` due to missing `redocly` binary — this is a pre-existing issue unrelated to this PR.
 
 ## Definition of Done
 
-- [x] Stage C artifact ranks sparse multi-layer candidates and includes preset calibration table.
-- [x] Calibrated presets define low, medium, and strong operating points with degeneration thresholds.
-- [x] Result includes clear fallback configuration and single-layer fallback behavior.
+- [x] Parity report documents where Gemma 3 behavior matches or diverges from Ramp findings.
+- [x] Acceptance-gate artifact is machine-readable and includes pass/fail rationale.
+- [x] Methodology decision states whether Gemma 3 parity is sufficient to start Gemma 4 transfer experiments.
 
 ## Constraints
 
-- [x] Build multi-layer candidates only from Stage B hard-gate passers.
-- [x] Include sparse global candidate near 23/29/35/41/47 and at least two dense control groups.
-- [x] Record safe operating bands and cliff boundaries for each candidate configuration.
+- [x] Report explicitly compares observed results against Ramp qualitative findings.
+- [x] Acceptance gates include coherence, degeneration, and adherence thresholds.
+- [x] Does not propose Gemma 4 migration until Gemma 3 acceptance gates pass.
 
-## Preset Calibration Summary
+## Acceptance Gate Summary
 
-| Preset | Multiplier Range | Calibrated Value | Coherence Floor | Degen Ceiling |
-|--------|-----------------|------------------|-----------------|---------------|
-| Low | 0.05–0.08 | 0.08 | 0.9216 | 0% |
-| Medium | 0.15–0.25 | 0.25 | 0.9254 | 0% |
-| Strong | 0.30–0.40 | 0.30 | 0.9034 | 0% |
+| Gate | Threshold | Observed | Status |
+|------|-----------|----------|--------|
+| Coherence | ≥ 0.80 | 0.934 | **PASS** |
+| Degeneration | ≤ 0.03 | 0.0 | **PASS** |
+| Adherence | ≥ 0.60 | 0.722 | **PASS** |
 
-**Cliff boundary:** Coherence cliff at multiplier 0.55 (coherence drop 0.056)
-**Fallback:** Single-layer at layer 41 with presets low=0.08, medium=0.20, strong=0.35
+**Methodology decision:** Gemma 3 parity is sufficient — Gemma 4 transfer experiments may begin.
 
 ## Rollback Note
 
-If preset calibration is inconsistent across concepts, freeze to medium-only preset and rerun calibration with expanded concept coverage.
+If parity evidence is inconclusive, hold methodology status at 'not ready' and rerun sweeps with expanded concept and prompt coverage.

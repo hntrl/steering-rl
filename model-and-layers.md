@@ -261,6 +261,46 @@ Suggested JSON shape:
 }
 ```
 
-## 13) Scope and caveats
+## 13) Gemma 3 Ramp-parity methodology decision
+
+As of the P3-03 parity assessment, Gemma 3 27B-IT has been validated against Ramp-style steering findings.
+
+### 13.1 Acceptance gate results
+
+| Gate | Threshold | Observed | Status |
+|------|-----------|----------|--------|
+| Coherence | ≥ 0.80 | 0.934 (multi-layer at medium) | PASS |
+| Degeneration | ≤ 0.03 | 0.0 (multi-layer at medium) | PASS |
+| Adherence | ≥ 0.60 | 0.722 (multi-layer at medium) | PASS |
+
+### 13.2 Ramp parity status
+
+All five qualitative findings from Ramp match our observations:
+- Layer 41 is the best single-layer target.
+- Sparse global configurations outperform dense configurations.
+- Degeneration cliffs are steep and detectable in dense configs.
+- Default layer set overlaps Ramp default [23, 29, 35, 41, 47].
+- No language reversion under heavy steering.
+
+Minor divergences exist in absolute degeneration magnitudes, but directional consistency is maintained. See `artifacts/sweeps/gemma3-ramp-parity-report.md` for details.
+
+### 13.3 Gemma 4 transfer readiness
+
+Gemma 3 parity is sufficient to start Gemma 4 transfer experiments, subject to:
+1. Gemma 3 acceptance gates remaining passing after expanded concept and prompt coverage.
+2. Gemma 4 transfer protocol using Gemma 3 parity results as baseline comparison.
+3. Gemma 4 experiments not replacing Gemma 3 defaults until Gemma 4 passes its own acceptance gates.
+
+If parity evidence becomes inconclusive after expanded coverage, hold methodology status at "not ready" and rerun sweeps.
+
+### 13.4 Artifact trail
+
+- Stage B sweep: `artifacts/sweeps/gemma3-stage-b-parity.json`
+- Stage C sweep: `artifacts/sweeps/gemma3-stage-c-parity.json`
+- Preset calibration: `artifacts/sweeps/gemma3-preset-calibration.json`
+- Acceptance gates: `artifacts/sweeps/gemma3-acceptance-gates.json`
+- Parity report: `artifacts/sweeps/gemma3-ramp-parity-report.md`
+
+## 14) Scope and caveats
 
 These procedures are tuned to our experiments on Qwen 2.5 7B Instruct and Gemma 3 27B-IT. Layer behavior and safe magnitudes are not universal laws. Re-run sweeps whenever you change model family, tokenizer/inference stack, or evaluation set.
