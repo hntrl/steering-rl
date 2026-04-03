@@ -1,5 +1,5 @@
 {
-  "name": "eval-orchestrator",
+  "name": "experiment-gates",
   "private": true,
   "version": "0.0.1",
   "type": "module",
