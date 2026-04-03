@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steering.example.com/schema/profile.json",
+  "title": "Steering Profile",
+  "description": "Immutable, versioned steering profile. Contains all configuration needed to reproduce a steering setup: model, layers, vector bundle, and preset calibration table. Each profile should be immutable and versioned.",
+  "type": "object",
+  "required": [
+    "profile_id",
+    "base_model",
+    "base_model_revision",
+    "layers",
+    "fallback_layer",
+    "vector_bundle_id",
+    "preset_table",
+    "judge_bundle",
+    "created_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "profile_id": {
+      "type": "string",
+      "description": "Unique immutable identifier for this profile version, e.g. steer-gemma3-default-v12",
+      "examples": ["steer-gemma3-default-v12"]
+    },
+    "base_model": {
+      "type": "string",
+      "description": "Base model family and size identifier, e.g. gemma-3-27b-it",
+      "examples": ["gemma-3-27b-it"]
+    },
+    "base_model_revision": {
+      "type": "string",
+      "description": "Model revision or checkpoint date string, e.g. 2026-03-15",
+      "examples": ["2026-03-15"]
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 1,
+      "description": "Default steering layers. Typically sparse global layers for Gemma architecture, e.g. [23, 29, 35, 41, 47].",
+      "examples": [[23, 29, 35, 41, 47]]
+    },
+    "fallback_layer": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Single-layer fallback used when multi-layer injection is unavailable or during degraded mode. Typically about two-thirds depth, e.g. 41.",
+      "examples": [41]
+    },
+    "vector_bundle_id": {
+      "type": "string",
+      "description": "Reference to the trained concept vector bundle, e.g. vec-bundle-2026-04-01-rc2",
+      "examples": ["vec-bundle-2026-04-01-rc2"]
+    },
+    "preset_table": {
+      "type": "object",
+      "required": ["low", "medium", "strong"],
+      "additionalProperties": false,
+      "description": "Calibrated multiplier values for each named intensity preset. Maps preset names to numeric multiplier values.",
+      "properties": {
+        "low": {
+          "type": "number",
+          "description": "Multiplier for low steering intensity",
+          "examples": [0.12]
+        },
+        "medium": {
+          "type": "number",
+          "description": "Multiplier for medium (default) steering intensity",
+          "examples": [0.22]
+        },
+        "strong": {
+          "type": "number",
+          "description": "Multiplier for strong steering intensity",
+          "examples": [0.34]
+        }
+      }
+    },
+    "judge_bundle": {
+      "type": "string",
+      "description": "Reference to the judge model/rubric bundle used for quality evaluation, e.g. judge-v4",
+      "examples": ["judge-v4"]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when this profile was created",
+      "examples": ["2026-04-02T00:00:00Z"]
+    }
+  }
+}
