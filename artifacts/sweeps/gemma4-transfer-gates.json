@@ -1,0 +1,62 @@
+{
+  "task_id": "P3-06",
+  "title": "Gemma 4 Transfer Gates",
+  "description": "Pass/fail thresholds and decision logic for evaluating Gemma 4 transfer readiness. Thresholds are at least as strict as Gemma 3 parity acceptance gates.",
+  "source_model": "gemma-3-27b-it",
+  "target_model": "gemma-4-27b-it",
+  "gemma3_acceptance_gates_ref": "gemma3-acceptance-gates.json",
+  "created_at": "2026-07-01T00:00:00.000Z",
+  "transfer_gates": {
+    "coherence": {
+      "description": "Coherence under steering must remain above threshold. At least as strict as Gemma 3 gate (0.80).",
+      "threshold": 0.80,
+      "gemma3_threshold": 0.80,
+      "direction": "gte",
+      "metric_key": "coherence"
+    },
+    "degeneration": {
+      "description": "Degeneration rate must stay below ceiling. At least as strict as Gemma 3 gate (0.03).",
+      "threshold": 0.03,
+      "gemma3_threshold": 0.03,
+      "direction": "lte",
+      "metric_key": "degenerate_rate"
+    },
+    "adherence": {
+      "description": "Concept adherence must show measurable lift. At least as strict as Gemma 3 gate (0.60).",
+      "threshold": 0.60,
+      "gemma3_threshold": 0.60,
+      "direction": "gte",
+      "metric_key": "concept_adherence"
+    },
+    "language_stability": {
+      "description": "Language stability must remain high to confirm no language reversion.",
+      "threshold": 0.99,
+      "gemma3_threshold": 0.99,
+      "direction": "gte",
+      "metric_key": "language_stability"
+    },
+    "correctness": {
+      "description": "Correctness must not regress below baseline minus tolerance.",
+      "threshold": 0.85,
+      "gemma3_threshold": 0.85,
+      "direction": "gte",
+      "metric_key": "correctness"
+    }
+  },
+  "decision_logic": {
+    "pass": "All transfer gates pass. Gemma 4 experimental sweeps may proceed to next phase.",
+    "fail": "One or more transfer gates failed. Rollback to Gemma 3 methodology. Gemma 4 runs remain tagged experimental and non-default.",
+    "overall_rule": "ALL gates must pass for transfer to proceed. Any single gate failure triggers rollback."
+  },
+  "rollback_policy": {
+    "trigger": "Any transfer gate fails OR regression detected in Gemma 4 experimental runs.",
+    "action": "Stop Gemma 4 transfer experiments. Continue with Gemma 3 calibrated profiles as sole default.",
+    "gemma4_status_on_rollback": "experimental",
+    "gemma3_status_on_rollback": "default"
+  },
+  "tagging": {
+    "gemma4_run_tag": "experimental",
+    "gemma4_is_default": false,
+    "rationale": "Gemma 4 transfer runs must be tagged experimental and non-default until all transfer gates pass."
+  }
+}
