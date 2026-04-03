@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steering.example.com/schema/run-metadata.json",
+  "title": "Run Metadata",
+  "description": "Metadata logged on every traced steering inference run. Contains all fields required for reproducibility, telemetry, and the feedback loop defined in feedback-loop.md section 4.",
+  "type": "object",
+  "required": [
+    "env",
+    "agent",
+    "base_model",
+    "base_model_revision",
+    "profile_id",
+    "vector_bundle_id",
+    "layers",
+    "fallback_layer",
+    "preset",
+    "multiplier",
+    "concept",
+    "request_id",
+    "thread_id",
+    "git_sha",
+    "judge_bundle",
+    "latency_ms",
+    "input_tokens",
+    "output_tokens",
+    "degenerate",
+    "language_shift"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "env": {
+      "type": "string",
+      "description": "Deployment environment, e.g. prod, staging, dev",
+      "examples": ["prod"]
+    },
+    "agent": {
+      "type": "string",
+      "description": "Agent or runtime identity producing this run, e.g. deepagentsjs",
+      "examples": ["deepagentsjs"]
+    },
+    "base_model": {
+      "type": "string",
+      "description": "Base model family and size identifier used for this run",
+      "examples": ["gemma-3-27b-it"]
+    },
+    "base_model_revision": {
+      "type": "string",
+      "description": "Model revision or checkpoint date string",
+      "examples": ["2026-03-15"]
+    },
+    "profile_id": {
+      "type": "string",
+      "description": "Reference to the immutable steering profile version. Must always be present per feedback-loop.md.",
+      "examples": ["steer-gemma3-default-v12"]
+    },
+    "vector_bundle_id": {
+      "type": "string",
+      "description": "Reference to the trained concept vector bundle. Must always be present per feedback-loop.md.",
+      "examples": ["vec-bundle-2026-04-01-rc2"]
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "minItems": 1,
+      "description": "Actual active layers after any runtime backoff. Should reflect the layers used during inference, not just the profile default.",
+      "examples": [[23, 29, 35, 41, 47]]
+    },
+    "fallback_layer": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Single-layer fallback from the profile, used during degraded mode",
+      "examples": [41]
+    },
+    "preset": {
+      "type": "string",
+      "description": "Named intensity preset used for this run, e.g. low, medium, strong",
+      "examples": ["medium"]
+    },
+    "multiplier": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Actual steering vector magnitude applied during inference",
+      "examples": [0.22]
+    },
+    "concept": {
+      "type": "string",
+      "description": "Concept slug identifying the steering vector applied, e.g. expense-management",
+      "examples": ["expense-management"]
+    },
+    "request_id": {
+      "type": "string",
+      "description": "Unique identifier for the inference request",
+      "examples": ["req_01HV000000000000000000"]
+    },
+    "thread_id": {
+      "type": "string",
+      "description": "Thread or conversation identifier grouping related requests",
+      "examples": ["thread_01HV000000000000000000"]
+    },
+    "dataset_version": {
+      "type": "string",
+      "description": "Version identifier of the eval dataset used, if running in eval context. Optional for production inference.",
+      "examples": ["steer-core-golden-v20260402"]
+    },
+    "git_sha": {
+      "type": "string",
+      "description": "Git commit SHA of the deployed steering runtime code",
+      "examples": ["abc1234"]
+    },
+    "judge_bundle": {
+      "type": "string",
+      "description": "Reference to the judge model/rubric bundle used for quality evaluation",
+      "examples": ["judge-v4"]
+    },
+    "latency_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "End-to-end inference latency in milliseconds",
+      "examples": [1720]
+    },
+    "input_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of input (prompt) tokens consumed",
+      "examples": [1034]
+    },
+    "output_tokens": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of output (completion) tokens generated",
+      "examples": [402]
+    },
+    "degenerate": {
+      "type": "boolean",
+      "description": "Post-guardrail degeneration detection result for the final response. True if repetition, collapse, or incoherent output was detected.",
+      "examples": [false]
+    },
+    "language_shift": {
+      "type": "boolean",
+      "description": "Whether unintended language drift was detected in the response",
+      "examples": [false]
+    }
+  }
+}
