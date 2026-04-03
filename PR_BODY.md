@@ -1,89 +1,59 @@
 ## Task
 
-**Task ID:** P3-01
-**Title:** Live canary rollout controller
-**Goal:** Promote challenger profiles with live traffic phases and strict automatic rollback policies using production metrics.
+**Task ID:** P3-05
+**Title:** Cost and quota guardrails
+**Goal:** Enforce per-route token budgets and request quotas so production traffic cannot exceed cost or safety envelopes.
 
 ## Changes
 
 ### New files
 
-- **`services/canary-router/src/controller.ts`** — `CanaryController` class that orchestrates phased traffic rollout (10% → 50% → 100%) with automatic rollback, kill switch, runtime config updates (no redeploy), freeze mode, and machine-readable event emission for all lifecycle actions.
-- **`services/canary-router/tests/controller.test.ts`** — 35 unit tests covering phase progression, auto-advance, rollback on degenerate_rate/p95_latency_ms/error_rate breaches, kill switch, runtime config, freeze/unfreeze, event listener management, and full lifecycle integration.
-- **`services/canary-router/tests/live-rollout-simulation.test.ts`** — 9 simulation tests validating traffic distribution per phase, rollback decision latency SLA (p95 < 5ms under 500-sample load), automatic rollback behavior, kill switch routing, and complete event audit trail.
+- **`services/steering-inference-api/src/guardrails/cost-policy.ts`** — `CostPolicy` class that enforces per-route token budgets and request quotas with rolling-window tracking. Supports per-model and per-profile budget overrides with specificity-based resolution, soft-limit warnings, deterministic hard-limit rejections (429 with Retry-After), runtime config updates, and structured telemetry event emission for all policy decisions.
+- **`services/steering-inference-api/tests/cost-policy.test.ts`** — 23 unit tests covering basic budget checks, soft-limit warnings (token and request thresholds), hard-limit rejections with deterministic retry guidance, warning-only mode (hard limits disabled), per-model/per-profile/combined overrides, telemetry event emission, and runtime configuration updates.
+- **`services/canary-router/src/budget-hooks.ts`** — `BudgetHooks` class that connects budget breach signals from the inference path to the rollout controller. Warning signals are recorded as telemetry; breach signals freeze the controller (halt phase progression) after a configurable threshold, with optional rollback-on-breach mode.
+- **`services/canary-router/tests/budget-hooks.test.ts`** — 18 unit tests covering warning signal handling, breach-triggered freeze behavior, breach count thresholds, rollback-on-breach mode, reset/unfreeze, telemetry event structure, and runtime config updates.
 
 ### Modified files
 
-- **`services/canary-router/src/index.ts`** — Added controller exports (`CanaryController`, `CanaryControllerConfig`, `ControllerEvent`, etc.).
-- **`services/canary-router/tests/canary-simulation.ts`** — Extended simulation with 3 new controller scenarios (auto-advance lifecycle, rollback latency SLA, runtime config update).
-- **`services/canary-router/package.json`** — Updated package name to `canary-router` to match verify filter.
-- **`package.json`** — Updated `canary:simulation` script filter to match new package name.
-- **`README.md`** — Added Live Canary Rollout Controller documentation section.
+- **`services/steering-inference-api/vitest.config.ts`** — Added `tests/cost-policy.test.ts` to the test include list.
+- **`services/canary-router/src/index.ts`** — Added `BudgetHooks` exports (`BudgetHooks`, `BudgetHookConfig`, `BudgetSignal`, etc.).
+- **`README.md`** — Added Cost and Quota Guardrails documentation section.
 
 ## Verify Command Output
 
 ```
-$ pnpm test --filter canary-router
+$ pnpm test --filter steering-inference-api && pnpm test --filter canary-router
 
- ✓ tests/controller.test.ts (35 tests) 6ms
- ✓ tests/canary-router.test.ts (31 tests) 12ms
- ✓ tests/live-rollout-simulation.test.ts (9 tests) 26ms
+steering-inference-api:
+ ✓ tests/cost-policy.test.ts (23 tests) 4ms
+ ✓ tests/guardrails.test.ts (19 tests) 5ms
+ ✓ tests/chat-completions.test.ts (47 tests) 61ms
 
  Test Files  3 passed (3)
-      Tests  75 passed (75)
+      Tests  89 passed (89)
 
-$ pnpm run canary:simulation
+canary-router:
+ ✓ tests/controller.test.ts (35 tests) 5ms
+ ✓ tests/budget-hooks.test.ts (18 tests) 4ms
+ ✓ tests/canary-router.test.ts (31 tests) 11ms
+ ✓ tests/live-rollout-simulation.test.ts (9 tests) 30ms
 
-=== Canary Router Simulation ===
-
---- Scenario 1: Happy-path rollout (10 → 50 → 100) ---
-  Phase 10%: challenger=116/1000 (11.6%) ✓
-  Phase 50%: challenger=480/1000 (48.0%) ✓
-  Phase 100%: challenger=1000/1000 (100.0%) ✓
-
---- Scenario 2: Auto-rollback on degenerate_rate breach ---
-  Rollback triggered: true (metric=degenerate_rate, value=0.08, threshold=0.03)
-  All traffic to champion after rollback: 100/100 ✓
-  Phase advance blocked during rollback: true ✓
-
---- Scenario 3: Kill switch disables all steering ---
-  Kill switch active — no steering: 100/100 ✓
-  Kill switch disabled — steering restored: true ✓
-
---- Scenario 4: Recovery after rollback reset ---
-  Rollback reset — phase back to: 10%
-  Can route to challenger again: true ✓
-
---- Scenario 5: CanaryController — phase progression with events ---
-  Auto-advance 10% → 50%: true (phase=50%) ✓
-  Auto-advance 50% → 100%: true (phase=100%) ✓
-  Phase advance events: 2 ✓
-  Rollout complete event: true ✓
-
---- Scenario 6: Controller rollback + latency SLA ---
-  Rollback triggered: true (latency=0.009ms) ✓
-  Latency within SLA (<5ms): true ✓
-  Rollback event emitted: true ✓
-
---- Scenario 7: Runtime config update ---
-  Config updated: championProfileId=new-champ ✓
-  Config event emitted: true ✓
-
-✅ All simulation scenarios PASSED
+ Test Files  4 passed (4)
+      Tests  93 passed (93)
 ```
 
 ## Definition of Done
 
-- [x] Controller supports phase progression 10/50/100 with runtime config updates.
-- [x] Rollback decision latency meets SLA under simulation tests (p95 < 5ms).
-- [x] Controller emits machine-readable events for phase changes and rollback actions.
+- [x] Inference path enforces token and cost budgets before provider execution.
+- [x] Rollout controller receives budget breach signals and can halt phase progression.
+- [x] Budget policy tests cover soft-limit warnings and hard-limit rejection behavior.
 
 ## Constraints
 
-- [x] Rollout phase changes must be configurable without redeploy.
-- [x] Rollback must trigger on degenerate rate, p95 latency, and error-rate thresholds.
-- [x] Kill switch must always route to baseline no-steering path.
+- [x] Guardrails must support per-model and per-profile budget overrides.
+- [x] Over-budget requests must return deterministic errors with retry guidance.
+- [x] Policy decisions must be emitted as telemetry events for auditing.
 
 ## Rollback Note
 
-If controller logic is unstable, freeze rollout at champion-only routing and disable automatic phase advancement.
+If budget enforcement blocks valid traffic unexpectedly, disable hard limits and retain warning-only telemetry until policy thresholds are corrected.
