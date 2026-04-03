@@ -1,0 +1,461 @@
+openapi: 3.1.0
+info:
+  title: Steering Inference API
+  description: >
+    OpenAI-compatible runtime endpoint that applies activation steering.
+    Serves steering in production with strict metadata logging and versioned
+    profile control.
+  version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: https://{host}/v1
+    description: Production
+    variables:
+      host:
+        default: api.steering.internal
+  - url: https://{host}/v1
+    description: Staging
+    variables:
+      host:
+        default: api.staging.steering.internal
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/chat/completions:
+    post:
+      operationId: createSteeringChatCompletion
+      summary: Create a steered chat completion
+      description: >
+        OpenAI-compatible chat completion endpoint with activation steering.
+        Accepts standard chat completion parameters plus a `steering` object
+        that controls concept injection via versioned profiles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SteeringChatCompletionRequest"
+            example:
+              model: gemma-3-27b-it
+              messages:
+                - role: system
+                  content: You are a helpful assistant.
+                - role: user
+                  content: Explain expense management best practices.
+              steering:
+                concept: expense-management
+                preset: medium
+                layers: [23, 29, 35, 41, 47]
+                multiplier: 0.22
+                profile_id: steer-gemma3-default-v12
+      responses:
+        "200":
+          description: Successful steered chat completion response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SteeringChatCompletionResponse"
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Steering configuration validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/profiles/{profile_id}:
+    get:
+      operationId: getProfile
+      summary: Retrieve a steering profile
+      description: >
+        Returns an immutable, versioned steering profile including layer
+        configuration, preset table, and vector bundle reference.
+      parameters:
+        - name: profile_id
+          in: path
+          required: true
+          description: "Unique identifier for the steering profile, e.g. steer-gemma3-default-v12"
+          schema:
+            type: string
+            example: steer-gemma3-default-v12
+      responses:
+        "200":
+          description: Steering profile object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "404":
+          description: Profile not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      description: Returns service health status.
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                    description: "Health status indicator"
+                    example: ok
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Service is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: "Bearer token for authenticating API requests"
+
+  schemas:
+    SteeringChatCompletionRequest:
+      type: object
+      required:
+        - model
+        - messages
+      properties:
+        model:
+          type: string
+          description: "Model identifier, e.g. gemma-3-27b-it"
+          example: gemma-3-27b-it
+        messages:
+          type: array
+          description: "Array of chat messages following the OpenAI chat format"
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+          minItems: 1
+        steering:
+          $ref: "#/components/schemas/SteeringParams"
+        temperature:
+          type: number
+          minimum: 0
+          maximum: 2
+          description: "Sampling temperature (0-2). Higher values increase randomness."
+          example: 0.7
+        max_tokens:
+          type: integer
+          minimum: 1
+          description: "Maximum number of tokens to generate"
+          example: 1024
+        stream:
+          type: boolean
+          default: false
+          description: "Whether to stream partial message deltas"
+
+    SteeringParams:
+      type: object
+      required:
+        - concept
+        - preset
+        - layers
+        - multiplier
+        - profile_id
+      description: >
+        Steering configuration that controls concept injection via activation
+        steering. All fields are required to ensure reproducible inference runs.
+      properties:
+        concept:
+          type: string
+          description: "Concept slug identifying the steering vector to apply, e.g. expense-management"
+          example: expense-management
+        preset:
+          type: string
+          enum: [low, medium, strong]
+          description: "Named intensity preset. Maps to a calibrated multiplier value from the profile's preset_table."
+          example: medium
+        layers:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          minItems: 1
+          description: "Target transformer layers for activation injection. Typically sparse global layers, e.g. [23, 29, 35, 41, 47]."
+          example: [23, 29, 35, 41, 47]
+        multiplier:
+          type: number
+          minimum: 0
+          description: "Steering vector magnitude. Derived from preset calibration table. Higher values increase concept pressure but risk degeneration."
+          example: 0.22
+        profile_id:
+          type: string
+          description: "Reference to the immutable steering profile version used for this request."
+          example: steer-gemma3-default-v12
+
+    ChatMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: [system, user, assistant]
+          description: "The role of the message author"
+          example: user
+        content:
+          type: string
+          description: "The content of the message"
+          example: Explain expense management best practices.
+
+    SteeringChatCompletionResponse:
+      type: object
+      required:
+        - id
+        - object
+        - created
+        - model
+        - choices
+        - usage
+        - steering_metadata
+      properties:
+        id:
+          type: string
+          description: "Unique identifier for the completion"
+          example: chatcmpl-abc123
+        object:
+          type: string
+          enum: [chat.completion]
+          description: "Object type, always chat.completion"
+        created:
+          type: integer
+          description: "Unix timestamp of when the completion was created"
+          example: 1714000000
+        model:
+          type: string
+          description: "Model used for the completion"
+          example: gemma-3-27b-it
+        choices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Choice"
+          description: "List of completion choices"
+        usage:
+          $ref: "#/components/schemas/Usage"
+        steering_metadata:
+          $ref: "#/components/schemas/SteeringResponseMetadata"
+
+    Choice:
+      type: object
+      required:
+        - index
+        - message
+        - finish_reason
+      properties:
+        index:
+          type: integer
+          description: "Index of the choice in the list"
+          example: 0
+        message:
+          $ref: "#/components/schemas/ChatMessage"
+        finish_reason:
+          type: string
+          enum: [stop, length, content_filter]
+          description: "Reason the model stopped generating"
+          example: stop
+
+    Usage:
+      type: object
+      required:
+        - prompt_tokens
+        - completion_tokens
+        - total_tokens
+      properties:
+        prompt_tokens:
+          type: integer
+          description: "Number of tokens in the prompt"
+          example: 1034
+        completion_tokens:
+          type: integer
+          description: "Number of tokens in the generated completion"
+          example: 402
+        total_tokens:
+          type: integer
+          description: "Total token count (prompt + completion)"
+          example: 1436
+
+    SteeringResponseMetadata:
+      type: object
+      required:
+        - profile_id
+        - layers
+        - preset
+        - multiplier
+        - concept
+        - degenerate
+        - language_shift
+      description: >
+        Metadata about the steering applied during inference. Included in
+        every response for traceability and downstream telemetry.
+      properties:
+        profile_id:
+          type: string
+          description: "Profile version used for this inference run"
+          example: steer-gemma3-default-v12
+        layers:
+          type: array
+          items:
+            type: integer
+          description: "Actual active layers after any runtime backoff"
+          example: [23, 29, 35, 41, 47]
+        preset:
+          type: string
+          description: "Preset name used"
+          example: medium
+        multiplier:
+          type: number
+          description: "Actual multiplier applied"
+          example: 0.22
+        concept:
+          type: string
+          description: "Concept slug that was steered"
+          example: expense-management
+        degenerate:
+          type: boolean
+          description: "Post-guardrail degeneration detection result for the final response"
+          example: false
+        language_shift:
+          type: boolean
+          description: "Whether unintended language drift was detected"
+          example: false
+
+    Profile:
+      type: object
+      required:
+        - profile_id
+        - base_model
+        - base_model_revision
+        - layers
+        - fallback_layer
+        - vector_bundle_id
+        - preset_table
+        - judge_bundle
+        - created_at
+      description: >
+        Immutable, versioned steering profile. Contains all configuration
+        needed to reproduce a steering setup: model, layers, vector bundle,
+        and preset calibration table.
+      properties:
+        profile_id:
+          type: string
+          description: "Unique immutable identifier for this profile version"
+          example: steer-gemma3-default-v12
+        base_model:
+          type: string
+          description: "Base model family and size identifier"
+          example: gemma-3-27b-it
+        base_model_revision:
+          type: string
+          description: "Model revision or checkpoint date"
+          example: "2026-03-15"
+        layers:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          minItems: 1
+          description: "Default steering layers. Typically sparse global layers for Gemma architecture."
+          example: [23, 29, 35, 41, 47]
+        fallback_layer:
+          type: integer
+          minimum: 0
+          description: "Single-layer fallback used when multi-layer injection is unavailable or during degraded mode"
+          example: 41
+        vector_bundle_id:
+          type: string
+          description: "Reference to the trained concept vector bundle"
+          example: vec-bundle-2026-04-01-rc2
+        preset_table:
+          type: object
+          required:
+            - low
+            - medium
+            - strong
+          properties:
+            low:
+              type: number
+              description: "Multiplier for low steering intensity"
+              example: 0.12
+            medium:
+              type: number
+              description: "Multiplier for medium (default) steering intensity"
+              example: 0.22
+            strong:
+              type: number
+              description: "Multiplier for strong steering intensity"
+              example: 0.34
+          description: "Calibrated multiplier values for each named preset"
+        judge_bundle:
+          type: string
+          description: "Reference to the judge model/rubric bundle used for quality evaluation"
+          example: judge-v4
+        created_at:
+          type: string
+          format: date-time
+          description: "ISO 8601 timestamp when this profile was created"
+          example: "2026-04-02T00:00:00Z"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - message
+            - type
+          properties:
+            message:
+              type: string
+              description: "Human-readable error message"
+              example: "Invalid steering configuration: layers array must not be empty"
+            type:
+              type: string
+              description: "Error type identifier"
+              example: invalid_request_error
+            code:
+              type: string
+              description: "Machine-readable error code"
+              example: invalid_steering_config
