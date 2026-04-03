@@ -22,7 +22,7 @@ const REQUIRED_ARRAY_FIELDS = [
   "definition_of_done",
 ];
 
-const PRIORITIES = new Set(["P0", "P1"]);
+const PRIORITIES = new Set(["P0", "P1", "P2"]);
 const RISK_LEVELS = new Set(["low", "medium", "high"]);
 
 function isNonEmptyString(value) {
@@ -51,15 +51,15 @@ function validateTask(task, fileName) {
   }
 
   if (task.priority && !PRIORITIES.has(task.priority)) {
-    errors.push("priority must be one of: P0, P1");
+    errors.push("priority must be one of: P0, P1, P2");
   }
 
   if (task.risk_level && !RISK_LEVELS.has(task.risk_level)) {
     errors.push("risk_level must be one of: low, medium, high");
   }
 
-  if (task.task_id && !/^P[01]-\d{2}$/.test(task.task_id)) {
-    errors.push("task_id must match pattern P0-00 or P1-00");
+  if (task.task_id && !/^P[0-2]-\d{2}$/.test(task.task_id)) {
+    errors.push("task_id must match pattern P0-00, P1-00, or P2-00");
   }
 
   const expectedFileName = `${task.task_id}.json`;

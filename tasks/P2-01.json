@@ -1,0 +1,35 @@
+{
+  "task_id": "P2-01",
+  "title": "Provider-backed steering inference adapter",
+  "goal": "Replace the stub chat completion path with a real provider adapter that executes steering requests against a live model runtime.",
+  "inputs": [
+    "services/steering-inference-api/src/routes/chat-completions.ts",
+    "contracts/openapi/inference.yaml",
+    "model-and-layers.md"
+  ],
+  "expected_outputs": [
+    "services/steering-inference-api/src/providers/model-adapter.ts",
+    "services/steering-inference-api/src/routes/chat-completions.ts",
+    "services/steering-inference-api/tests/chat-completions.test.ts",
+    "README.md"
+  ],
+  "constraints": [
+    "Preserve OpenAI-compatible request and response shape.",
+    "Do not log raw prompts or secret tokens in runtime logs.",
+    "Keep deterministic unit tests by mocking provider calls."
+  ],
+  "verify_command": "pnpm test --filter steering-inference-api",
+  "definition_of_done": [
+    "Chat completions route calls a provider adapter instead of returning stub text.",
+    "Steering metadata is attached to successful responses and error paths remain deterministic.",
+    "Provider failures map to structured 5xx responses with retry-safe error codes."
+  ],
+  "rollback_note": "If live adapter behavior is unstable, switch routing back to the deterministic stub path behind a feature flag while keeping metadata validation enabled.",
+  "dependencies": [
+    "P0-05",
+    "P0-06"
+  ],
+  "priority": "P2",
+  "track": "runtime",
+  "risk_level": "high"
+}

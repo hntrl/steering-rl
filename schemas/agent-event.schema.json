@@ -57,7 +57,7 @@
     },
     "task_id": {
       "type": "string",
-      "pattern": "^P[01]-\\d{2}$"
+      "pattern": "^P[0-2]-\\d{2}$"
     },
     "issue_number": {
       "type": "integer",

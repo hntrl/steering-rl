@@ -20,7 +20,7 @@
   "properties": {
     "task_id": {
       "type": "string",
-      "pattern": "^P[01]-\\d{2}$"
+      "pattern": "^P[0-2]-\\d{2}$"
     },
     "title": {
       "type": "string",
@@ -74,7 +74,7 @@
     },
     "priority": {
       "type": "string",
-      "enum": ["P0", "P1"]
+      "enum": ["P0", "P1", "P2"]
     },
     "track": {
       "type": "string",

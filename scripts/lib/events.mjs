@@ -67,7 +67,7 @@ export function validateEvent(event) {
     throw new Error("event data must be an object");
   }
 
-  if (!/^P[01]-\d{2}$/.test(String(event.task_id))) {
+  if (!/^P[0-2]-\d{2}$/.test(String(event.task_id))) {
     throw new Error(`event task_id is invalid: ${event.task_id}`);
   }
 }
