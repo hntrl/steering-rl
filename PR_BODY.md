@@ -1,61 +1,74 @@
 ## Task
 
-**Task ID:** P1-05
-**Title:** Doctor JSON output and alert thresholds
-**Goal:** Add machine-readable doctor output and severity thresholds so scheduled health checks can gate and alert automatically.
+**Task ID:** P2-05
+**Title:** Vector trainer service for calibration artifacts
+**Goal:** Add a vector-trainer service that produces versioned concept vector bundles and preset calibration tables from training corpora.
 
 ## Changes
 
-### `scripts/agent-doctor.mjs`
-- Added `--format json` flag producing structured JSON output conforming to `schemas/doctor-report.schema.json`
-- Added configurable `--strict` mode with `--fail-threshold` and `--warn-threshold` for CI/cron gating
-- Added `remediation` field on failing/warning checks with actionable fix instructions
-- Added secret redaction — `EXECUTOR_BOT_TOKEN`, `LANGSMITH_API_KEY`, `LANGCHAIN_API_KEY` values are never printed raw in text or JSON modes
+### `services/vector-trainer/src/train.ts`
+- Deterministic training pipeline using seeded PRNG (xoshiro128**)
+- Computes concept activation vectors (CAV) via mean-difference method per layer
+- Normalizes vectors to unit norm and calibrates preset multipliers per `effective_strength ~= alpha * ||v||`
+- Generates versioned bundle IDs encoding date and seed hex
+- Outputs `TrainedBundle` with `vectorBundleId`, `baseModelRevision`, `seed`, concept vectors, and per-concept `PresetCalibrationTable`
 
-### `schemas/doctor-report.schema.json`
-- New JSON Schema defining the doctor report structure: `schema_version`, `timestamp`, `summary` (ok/warn/fail/total counts), and `checks` array with `level`, `title`, `message`, and optional `remediation`
+### `services/vector-trainer/src/export.ts`
+- `toResolvableBundles()` — converts trained output to `ResolvableVectorBundle` format directly compatible with steering-engine `VectorResolver.registerBundle()`
+- `serializeBundle()` / `deserializeBundle()` — JSON-safe roundtrip serialization
+- `exportArtifact()` — produces complete `BundleArtifact` with `vector_bundle_id`, `model_revision`, `seed` metadata, per-concept bundles, and preset calibration tables
+- `validateArtifact()` — structural validation of artifact integrity
 
-### `scripts/tests/agent-doctor-json.test.mjs`
-- 8 tests validating JSON schema shape, summary count arithmetic, remediation presence, secret redaction in both JSON and text modes, and strict threshold exit behavior
+### `services/vector-trainer/src/index.ts`
+- Public API re-exporting all types and functions from train and export modules
 
-### `README.md`
-- Documented `--format json`, `--strict`, `--fail-threshold`, and `--warn-threshold` flags
+### `services/vector-trainer/tests/vector-trainer.test.ts`
+- 28 tests covering:
+  - SeededRng determinism, range, and cross-seed divergence
+  - Training determinism for same corpus + seed
+  - Bundle metadata (vector_bundle_id, model revision, seed)
+  - Concept vector generation across all target layers
+  - Vector normalization (unit norm)
+  - Preset calibration table generation and ordering
+  - Multi-concept training runs
+  - Resolvable bundle format compatibility with VectorResolver
+  - Serialization roundtrip integrity
+  - Artifact schema validation
+  - End-to-end determinism: train → export → serialize → deserialize
+
+### `services/vector-trainer/package.json`, `tsconfig.json`, `vitest.config.ts`
+- Service scaffolding following existing patterns (steering-engine)
 
 ## Verify Command Output
 
 ```
-$ node --test scripts/tests/agent-doctor-json.test.mjs
+$ pnpm test --filter vector-trainer
 
-▶ doctor --format json
-  ✔ outputs valid JSON matching the doctor-report schema (98ms)
-  ✔ includes remediation on failing checks (95ms)
-  ✔ schema file exists and is valid JSON Schema (0ms)
-✔ doctor --format json (195ms)
-▶ secret redaction
-  ✔ never prints raw secret values in JSON mode (91ms)
-  ✔ never prints raw secret values in text mode (96ms)
-✔ secret redaction (187ms)
-▶ --strict thresholds
-  ✔ exits non-zero in strict mode when failures meet default threshold (106ms)
-  ✔ exits non-zero in strict mode when warnings meet --warn-threshold (89ms)
-  ✔ exits zero when thresholds are not breached (92ms)
-✔ --strict thresholds (288ms)
+> vector-trainer@0.1.0 test
+> vitest run
 
-tests 8 | pass 8 | fail 0
+ RUN  v3.2.4
+
+ ✓ tests/vector-trainer.test.ts (28 tests) 16ms
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  01:11:06
+   Duration  327ms (transform 38ms, setup 0ms, collect 36ms, tests 16ms, environment 0ms, prepare 52ms)
 ```
 
 ## Definition of Done
 
-- [x] Doctor supports `--format json` with a stable schema
-- [x] Doctor supports `--strict` thresholds suitable for CI and cron alerting
-- [x] Tests validate schema shape and secret-redaction behavior
+- [x] Vector trainer emits versioned bundle artifacts and preset calibration tables
+- [x] Generated artifacts pass schema validation and resolve in runtime tests
+- [x] Training/export behavior is covered by deterministic unit tests
 
 ## Constraints
 
-- [x] JSON output includes summary counts, per-check detail, and recommended remediation actions
-- [x] Never prints raw secret values in text or JSON modes
-- [x] Strict mode returns non-zero exit for configured failure thresholds
+- [x] Artifact output includes `vector_bundle_id`, model revision, and seed metadata
+- [x] Training pipeline is deterministic for the same dataset and seed
+- [x] Export format is directly resolvable by steering-engine vector resolver
 
 ## Rollback Note
 
-If JSON or strict mode causes false alarms, disable strict gating and continue using text-mode doctor checks until thresholds are recalibrated.
+If training artifacts are unstable, pin runtime to previous vector bundle IDs and disable automatic bundle promotion.
