@@ -1,6 +1,6 @@
-# Sweep Artifacts — Gemma 4 Stage A/B/C
+# Sweep Artifacts — Gemma 4 Stage A/B/C + Gemma 3 Parity
 
-This directory contains output artifacts from the Gemma 4 steering sweep automation.
+This directory contains output artifacts from the Gemma 4 steering sweep automation and Gemma 3 Ramp-parity sweeps.
 
 ## Artifacts
 
@@ -9,6 +9,7 @@ This directory contains output artifacts from the Gemma 4 steering sweep automat
 | `gemma4-stage-a-result.json` | A | Baseline (no-steering) quality metrics |
 | `gemma4-stage-b-result.json` | B | Single-layer sweep with per-layer metrics and challenger candidates |
 | `gemma4-stage-c-result.json` | C | Multi-layer calibration sweep with ranked candidates and preset tables |
+| `gemma3-stage-b-parity.json` | B-parity | Gemma 3 27B-IT Ramp-parity single-layer sweep with sparse/dense controls |
 
 ## Stage A — Baseline
 
@@ -94,6 +95,43 @@ For each layer combination that passes hard gates at all three preset levels, th
 - Fallback layer (≈ two-thirds depth within the set)
 - Calibrated preset table (`low`, `medium`, `strong`)
 - Full profile bundle compatible with the profile schema and Stage D / canary routing
+
+## Stage B-Parity — Gemma 3 Ramp-Parity Single-Layer Sweep
+
+Reproduces Ramp-style single-layer findings on Gemma 3 27B-IT using deterministic layer and multiplier sweeps across layers 16-53. Includes sparse global and dense control configurations so degeneration cliffs are measurable.
+
+**Model:** Gemma 3 27B-IT
+
+**Sweep axes:**
+- Layers: 16–53 (38 candidate layers, single-layer sweep)
+- Multipliers: 0.05, 0.15, 0.25, 0.35, 0.55, 0.75
+
+**Configurations tested:**
+- `sparse-global-5` — Ramp default: layers 23, 29, 35, 41, 47
+- `sparse-global-all` — All global attention layers in candidate range
+- `dense-early-mid` — Dense block layers 16-27
+- `dense-mid` — Dense block layers 28-39
+- `dense-late` — Dense block layers 42-53
+- `dense-mid-to-late-19` — Dense 19-layer block layers 28-46
+- `all-candidate-layers` — All 38 candidate layers at once
+
+**Per-layer metrics:**
+- `coherence`, `concept_adherence`, `correctness`, `degenerate_rate`, `language_stability`, `latency_p50_ms`, `latency_p95_ms`, `rank_score`
+
+**Hard gates for candidate selection:**
+- `degenerate_rate <= 3%`
+- `coherence >= baseline - 0.02` (non-inferiority)
+- `correctness >= baseline - 0.01` (non-inferiority)
+- `language_stability >= 99%`
+
+**Ramp parity checks:**
+- Layer 41 appears in top candidates (matches Ramp-reported best single-layer)
+- Sparse global configs outperform dense configs (matches Ramp finding)
+- Degeneration cliffs detected in dense configs at high multipliers
+
+**Run-card metadata:** Every result includes `run_id`, `task_id`, `model`, `model_revision`, `dataset_version`, `seed`, `judge_bundle`, `git_sha`, `created_at` for full reproducibility.
+
+**Output:** Ranked single-layer candidates with hard-gate pass/fail metrics, configuration comparison results, and Ramp parity summary.
 
 ## Gate Checker Compatibility
 
