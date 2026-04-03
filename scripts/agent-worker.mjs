@@ -18,7 +18,13 @@ import {
 } from "./lib/state.mjs";
 import { buildDeepAgentsPrompt, readTaskContract } from "./lib/tasks.mjs";
 import { runCommand } from "./lib/command.mjs";
-import { defaultWorktreeBase, ensureWorktree, hasGitChanges } from "./lib/worktree.mjs";
+import {
+  defaultWorktreeBase,
+  ensureWorktree,
+  hasGitChanges,
+  syncBranch,
+  MAX_CONFLICT_RETRIES,
+} from "./lib/worktree.mjs";
 
 function parseArgs(argv) {
   const args = {
@@ -569,6 +575,180 @@ async function main() {
   );
   logStep(`using worktree ${worktreeDir}`);
 
+  const gitEnv = ensureGitIdentityEnv();
+  logStep(`syncing branch ${branch} with ${baseBranch}`);
+  const syncResult = syncBranch(worktreeDir, baseBranch, gitEnv);
+
+  await emitEvent(logDir, {
+    source: "worker",
+    event_type: "branch_sync",
+    repo: args.repo,
+    task_id: args.taskId,
+    issue_number: args.issueNumber,
+    run_id: args.runId,
+    attempt: args.attempt,
+    branch,
+    worktree: worktreeDir,
+    status: syncResult.conflicted ? "failed" : "ok",
+    data: {
+      sync_status: syncResult.status,
+      conflicted_files: syncResult.files,
+      message: syncResult.message,
+    },
+    langsmith: {
+      project: eventProject,
+      correlation_key: `${args.taskId}:${args.runId}`,
+    },
+  });
+
+  if (syncResult.status === "lockfile_resolved") {
+    logStep("lockfile conflict auto-resolved via pnpm install --lockfile-only");
+    await emitEvent(logDir, {
+      source: "worker",
+      event_type: "conflict_recovery",
+      repo: args.repo,
+      task_id: args.taskId,
+      issue_number: args.issueNumber,
+      run_id: args.runId,
+      attempt: args.attempt,
+      branch,
+      worktree: worktreeDir,
+      status: "ok",
+      data: {
+        recovery_type: "lockfile_regeneration",
+        conflicted_files: syncResult.files,
+        message: syncResult.message,
+      },
+      langsmith: {
+        project: eventProject,
+        correlation_key: `${args.taskId}:${args.runId}`,
+      },
+    });
+
+    commentIssue(
+      args.repo,
+      args.issueNumber,
+      [
+        `Conflict recovery: lockfile conflict resolved automatically.`,
+        `Run ID: ${args.runId}`,
+        `Method: pnpm install --lockfile-only`,
+      ].join("\n"),
+      token,
+    );
+  }
+
+  if (syncResult.conflicted) {
+    const conflictRetryCount = args.attempt;
+    logStep(
+      `branch sync conflict detected (attempt ${conflictRetryCount}/${MAX_CONFLICT_RETRIES}): ${syncResult.message}`,
+    );
+
+    await emitEvent(logDir, {
+      source: "worker",
+      event_type: "conflict_recovery",
+      repo: args.repo,
+      task_id: args.taskId,
+      issue_number: args.issueNumber,
+      run_id: args.runId,
+      attempt: args.attempt,
+      branch,
+      worktree: worktreeDir,
+      status: "failed",
+      data: {
+        recovery_type: syncResult.status,
+        conflicted_files: syncResult.files,
+        message: syncResult.message,
+        attempt: conflictRetryCount,
+        max_retries: MAX_CONFLICT_RETRIES,
+      },
+      langsmith: {
+        project: eventProject,
+        correlation_key: `${args.taskId}:${args.runId}`,
+      },
+    });
+
+    if (conflictRetryCount >= MAX_CONFLICT_RETRIES) {
+      markIssueBlocked(args.repo, args.issueNumber, token);
+
+      const blockedComment = [
+        `Task ${args.taskId} blocked: merge conflict could not be resolved automatically after ${conflictRetryCount} attempt(s).`,
+        "",
+        `**Conflicted files:** ${syncResult.files.join(", ")}`,
+        `**Sync status:** ${syncResult.status}`,
+        `**Error:** ${syncResult.message}`,
+        "",
+        "**Remediation steps:**",
+        "1. Check out the branch locally: `git checkout ${branch}`",
+        `2. Rebase onto ${baseBranch}: \`git rebase origin/${baseBranch}\``,
+        "3. Resolve conflicts manually, preserving task changes in non-lockfile files",
+        "4. For lockfile conflicts: run `pnpm install --lockfile-only` after resolving other files",
+        "5. Push the resolved branch and remove the `status:blocked` label",
+        "",
+        `Run ID: ${args.runId}`,
+      ].join("\n");
+
+      commentIssue(args.repo, args.issueNumber, blockedComment, token);
+
+      await emitEvent(logDir, {
+        source: "worker",
+        event_type: "issue_labeled",
+        repo: args.repo,
+        task_id: args.taskId,
+        issue_number: args.issueNumber,
+        run_id: args.runId,
+        attempt: args.attempt,
+        branch,
+        worktree: worktreeDir,
+        status: "ok",
+        data: {
+          add_labels: ["status:blocked"],
+          remove_labels: ["status:in-progress"],
+          reason: "repeated_conflict_failure",
+        },
+        langsmith: {
+          project: eventProject,
+          correlation_key: `${args.taskId}:${args.runId}`,
+        },
+      });
+
+      await upsertRun(stateDir, {
+        run_id: args.runId,
+        status: "conflict_blocked",
+        finished_at: nowIso(),
+        failure_reason: syncResult.message,
+      });
+
+      await releaseTaskLock(stateDir, args.taskId);
+      logStep(`released lock for ${args.taskId}`);
+      return;
+    }
+
+    commentIssue(
+      args.repo,
+      args.issueNumber,
+      [
+        `Conflict recovery failed (attempt ${conflictRetryCount}/${MAX_CONFLICT_RETRIES}): ${syncResult.message}`,
+        `Conflicted files: ${syncResult.files.join(", ")}`,
+        `Run ID: ${args.runId}`,
+        "Will retry on next attempt.",
+      ].join("\n"),
+      token,
+    );
+
+    await upsertRun(stateDir, {
+      run_id: args.runId,
+      status: "conflict_retry",
+      finished_at: nowIso(),
+      failure_reason: syncResult.message,
+    });
+
+    await releaseTaskLock(stateDir, args.taskId);
+    logStep(`released lock for ${args.taskId}`);
+    return;
+  }
+
+  logStep(`branch sync: ${syncResult.status} — ${syncResult.message}`);
+
   await upsertRun(stateDir, {
     run_id: args.runId,
     task_id: args.taskId,
@@ -913,7 +1093,6 @@ async function main() {
       return;
     }
 
-    const gitEnv = ensureGitIdentityEnv();
     logStep("staging and committing changes");
     runCommand("git", ["-C", worktreeDir, "add", "."], { capture: false });
     runCommand(
