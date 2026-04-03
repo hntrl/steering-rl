@@ -1,104 +1,61 @@
 ## Task
 
-**Task ID:** P1-03
-**Title:** Automatic merged branch cleanup
-**Goal:** Automatically delete merged task branches and prune stale task worktrees after successful reconciliation.
+**Task ID:** P1-05
+**Title:** Doctor JSON output and alert thresholds
+**Goal:** Add machine-readable doctor output and severity thresholds so scheduled health checks can gate and alert automatically.
 
 ## Changes
 
-### `scripts/lib/branch-cleanup.mjs` (new)
-- `isTaskBranch(branch)` — validates branch matches `agent/P0-##` or `agent/P1-##`
-- `isProtectedBranch(branch)` — guards `main` and `master` from deletion
-- `listMergedTaskBranches(mergedPrs)` — filters merged PRs to only task branches
-- `deleteRemoteBranch(repo, branch, options)` — deletes a single remote branch via GitHub API with dry-run support
-- `deleteMergedBranches(repo, mergedPrs, options)` — batch deletes merged task branches with dry-run support
-- `deleteLocalBranch(branch, options)` — deletes a local branch with dry-run and safety guards
+### `scripts/agent-doctor.mjs`
+- Added `--format json` flag producing structured JSON output conforming to `schemas/doctor-report.schema.json`
+- Added configurable `--strict` mode with `--fail-threshold` and `--warn-threshold` for CI/cron gating
+- Added `remediation` field on failing/warning checks with actionable fix instructions
+- Added secret redaction — `EXECUTOR_BOT_TOKEN`, `LANGSMITH_API_KEY`, `LANGCHAIN_API_KEY` values are never printed raw in text or JSON modes
 
-### `scripts/lib/worktree.mjs` (updated)
-- `listWorktrees(repoRoot)` — parses `git worktree list --porcelain` output
-- `listStaleWorktrees(repoRoot, activeTaskIds)` — identifies worktrees for tasks with no active runs
-- `pruneStaleWorktrees(repoRoot, activeTaskIds, options)` — removes stale worktrees with dry-run support
+### `schemas/doctor-report.schema.json`
+- New JSON Schema defining the doctor report structure: `schema_version`, `timestamp`, `summary` (ok/warn/fail/total counts), and `checks` array with `level`, `title`, `message`, and optional `remediation`
 
-### `scripts/agent-reconciler.mjs` (updated)
-- Calls `deleteMergedBranches()` after processing merged PRs
-- Adds `reconcileStaleWorktrees()` step to the main loop, pruning worktrees for tasks without active runs
+### `scripts/tests/agent-doctor-json.test.mjs`
+- 8 tests validating JSON schema shape, summary count arithmetic, remediation presence, secret redaction in both JSON and text modes, and strict threshold exit behavior
 
-### `scripts/tests/branch-cleanup.test.mjs` (new)
-- 30 tests covering branch pattern matching, protected branch guards, merged branch listing, dry-run behavior, deletion safety, and worktree stale detection
-
-### `README.md` (updated)
-- Added "Automatic branch cleanup" section documenting the feature and dry-run usage
+### `README.md`
+- Documented `--format json`, `--strict`, `--fail-threshold`, and `--warn-threshold` flags
 
 ## Verify Command Output
 
 ```
-node --test scripts/tests/branch-cleanup.test.mjs
+$ node --test scripts/tests/agent-doctor-json.test.mjs
 
-▶ isTaskBranch
-  ✔ accepts agent/P0-01
-  ✔ accepts agent/P1-12
-  ✔ rejects main
-  ✔ rejects master
-  ✔ rejects agent/P2-01
-  ✔ rejects feature/something
-  ✔ rejects empty string
-  ✔ rejects null
-  ✔ rejects undefined
-  ✔ rejects agent/P0-1 (single digit)
-  ✔ rejects agent/P0-123 (three digits)
-✔ isTaskBranch
-▶ isProtectedBranch
-  ✔ marks main as protected
-  ✔ marks master as protected
-  ✔ does not protect task branches
-  ✔ does not protect feature branches
-✔ isProtectedBranch
-▶ listMergedTaskBranches
-  ✔ returns task branches from merged PRs
-  ✔ filters out non-task branches
-  ✔ never includes protected branches
-  ✔ handles empty input
-  ✔ skips PRs with missing headRefName
-✔ listMergedTaskBranches
-▶ deleteRemoteBranch
-  ✔ refuses to delete protected branches
-  ✔ refuses to delete non-task branches
-  ✔ dry-run does not mutate git state
-✔ deleteRemoteBranch
-▶ deleteLocalBranch
-  ✔ refuses to delete protected branches
-  ✔ refuses to delete non-task branches
-  ✔ dry-run does not mutate git state
-✔ deleteLocalBranch
-▶ deleteMergedBranches
-  ✔ dry-run returns planned deletions without mutating
-  ✔ skips non-task branches
-  ✔ handles empty PR list
-✔ deleteMergedBranches
-▶ listStaleWorktrees
-  ✔ is a function
-✔ listStaleWorktrees
-ℹ tests 30
-ℹ suites 7
-ℹ pass 30
-ℹ fail 0
-ℹ cancelled 0
-ℹ skipped 0
-ℹ todo 0
+▶ doctor --format json
+  ✔ outputs valid JSON matching the doctor-report schema (98ms)
+  ✔ includes remediation on failing checks (95ms)
+  ✔ schema file exists and is valid JSON Schema (0ms)
+✔ doctor --format json (195ms)
+▶ secret redaction
+  ✔ never prints raw secret values in JSON mode (91ms)
+  ✔ never prints raw secret values in text mode (96ms)
+✔ secret redaction (187ms)
+▶ --strict thresholds
+  ✔ exits non-zero in strict mode when failures meet default threshold (106ms)
+  ✔ exits non-zero in strict mode when warnings meet --warn-threshold (89ms)
+  ✔ exits zero when thresholds are not breached (92ms)
+✔ --strict thresholds (288ms)
+
+tests 8 | pass 8 | fail 0
 ```
 
 ## Definition of Done
 
-- [x] Merged task branches are automatically cleaned from remote when safe
-- [x] Stale local task worktrees can be pruned without touching active runs
-- [x] Cleanup logic is covered by tests including dry-run behavior
+- [x] Doctor supports `--format json` with a stable schema
+- [x] Doctor supports `--strict` thresholds suitable for CI and cron alerting
+- [x] Tests validate schema shape and secret-redaction behavior
 
 ## Constraints
 
-- [x] Only delete branches matching `agent/P0-##` or `agent/P1-##` with merged PRs
-- [x] Never delete protected branches such as `main` or `master`
-- [x] Support dry-run mode that prints planned deletions without mutating git state
+- [x] JSON output includes summary counts, per-check detail, and recommended remediation actions
+- [x] Never prints raw secret values in text or JSON modes
+- [x] Strict mode returns non-zero exit for configured failure thresholds
 
 ## Rollback Note
 
-If cleanup deletes unexpected refs, disable automatic deletion and run in dry-run mode while restoring branch selection guards.
+If JSON or strict mode causes false alarms, disable strict gating and continue using text-mode doctor checks until thresholds are recalibrated.

@@ -129,6 +129,23 @@ pnpm agent:doctor
 
 The doctor report includes explicit requeue commands when root dependency tasks are blocked.
 
+Machine-readable JSON output for CI and cron alerting:
+
+```bash
+node scripts/agent-doctor.mjs --format json
+```
+
+The JSON report follows `schemas/doctor-report.schema.json` and includes summary counts, per-check detail, and recommended remediation actions. Secret values are always redacted in both text and JSON modes.
+
+Strict mode returns non-zero exit when failure or warning thresholds are breached:
+
+```bash
+node scripts/agent-doctor.mjs --strict                        # exit 1 on any fail
+node scripts/agent-doctor.mjs --strict --fail-threshold 2     # exit 1 on >= 2 fails
+node scripts/agent-doctor.mjs --strict --warn-threshold 3     # also gate on >= 3 warnings
+node scripts/agent-doctor.mjs --strict --format json          # combine JSON + strict
+```
+
 Optional smoke test (30s timeout):
 
 ```bash

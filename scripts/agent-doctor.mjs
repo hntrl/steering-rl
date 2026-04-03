@@ -19,6 +19,9 @@ function parseArgs(argv) {
     repo: process.env.REPO || "hntrl/steering-rl",
     strict: false,
     smoke: false,
+    format: "text",
+    failThreshold: 1,
+    warnThreshold: -1,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -30,14 +33,55 @@ function parseArgs(argv) {
       args.strict = true;
     } else if (token === "--smoke") {
       args.smoke = true;
+    } else if (token === "--format") {
+      args.format = argv[i + 1] || args.format;
+      i += 1;
+    } else if (token === "--fail-threshold") {
+      args.failThreshold = parseInt(argv[i + 1], 10);
+      i += 1;
+    } else if (token === "--warn-threshold") {
+      args.warnThreshold = parseInt(argv[i + 1], 10);
+      i += 1;
     }
   }
 
   return args;
 }
 
-function addResult(results, level, title, message) {
-  results.push({ level, title, message });
+function addResult(results, level, title, message, remediation) {
+  const entry = { level, title, message };
+  if (remediation) entry.remediation = remediation;
+  results.push(entry);
+}
+
+const SECRET_ENV_NAMES = new Set([
+  "EXECUTOR_BOT_TOKEN",
+  "LANGSMITH_API_KEY",
+  "LANGCHAIN_API_KEY",
+  "GH_TOKEN",
+  "GITHUB_TOKEN",
+]);
+
+function redactSecrets(value) {
+  if (typeof value !== "string") return value;
+  let redacted = value;
+  for (const name of SECRET_ENV_NAMES) {
+    const secret = process.env[name];
+    if (secret && secret.length >= 4) {
+      while (redacted.includes(secret)) {
+        redacted = redacted.replace(secret, "***REDACTED***");
+      }
+    }
+  }
+  return redacted;
+}
+
+function redactResult(item) {
+  return {
+    ...item,
+    message: redactSecrets(item.message),
+    ...(item.remediation ? { remediation: redactSecrets(item.remediation) } : {}),
+  };
 }
 
 function levelTag(level) {
@@ -95,7 +139,7 @@ async function checkCommands(results) {
     if (res.status === 0) {
       addResult(results, "ok", `Command ${command}`, res.stdout.trim());
     } else {
-      addResult(results, "fail", `Command ${command}`, "not found in PATH");
+      addResult(results, "fail", `Command ${command}`, "not found in PATH", `Install ${command} and ensure it is on your PATH`);
     }
   }
 }
@@ -125,6 +169,7 @@ function checkDeepAgentsConfig(results) {
       "warn",
       "DeepAgents shell allow list",
       "'all' behaves as a literal allow-list entry and can block normal commands; use an explicit command list",
+      "Set DEEPAGENTS_SHELL_ALLOW_LIST to an explicit comma-separated command list",
     );
     return;
   }
@@ -135,6 +180,7 @@ function checkDeepAgentsConfig(results) {
       "warn",
       "DeepAgents shell allow list",
       "'recommended' is often read-only and may block pnpm/git commands needed for coding tasks",
+      "Set DEEPAGENTS_SHELL_ALLOW_LIST to an explicit comma-separated command list",
     );
     return;
   }
@@ -147,6 +193,7 @@ function checkDeepAgentsConfig(results) {
       "warn",
       "DeepAgents shell allow list",
       `missing coding commands: ${missing.join(",")}`,
+      `Add missing commands to DEEPAGENTS_SHELL_ALLOW_LIST: ${missing.join(",")}`,
     );
     return;
   }
@@ -156,7 +203,7 @@ function checkDeepAgentsConfig(results) {
 
 async function checkGithub(results, args, token) {
   if (!token) {
-    addResult(results, "fail", "EXECUTOR_BOT_TOKEN", "missing");
+    addResult(results, "fail", "EXECUTOR_BOT_TOKEN", "missing", "Set EXECUTOR_BOT_TOKEN environment variable with a valid GitHub token");
     return;
   }
 
@@ -167,7 +214,7 @@ async function checkGithub(results, args, token) {
     }).stdout.trim();
     addResult(results, "ok", "Executor identity", login);
   } catch (error) {
-    addResult(results, "fail", "Executor identity", error.message || String(error));
+    addResult(results, "fail", "Executor identity", error.message || String(error), "Verify EXECUTOR_BOT_TOKEN is valid and gh CLI is authenticated");
     return;
   }
 
@@ -178,7 +225,7 @@ async function checkGithub(results, args, token) {
     const branch = repoData?.defaultBranchRef?.name || "main";
     addResult(results, "ok", "Repo access", `${repoData.nameWithOwner} (default ${branch})`);
   } catch (error) {
-    addResult(results, "fail", "Repo access", error.message || String(error));
+    addResult(results, "fail", "Repo access", error.message || String(error), `Ensure the token has access to ${args.repo}`);
     return;
   }
 
@@ -417,7 +464,7 @@ async function checkLangSmith(results) {
     "";
 
   if (!apiKey) {
-    addResult(results, "warn", "LangSmith API key", "missing (LANGSMITH_API_KEY or LANGCHAIN_API_KEY)");
+    addResult(results, "warn", "LangSmith API key", "missing (LANGSMITH_API_KEY or LANGCHAIN_API_KEY)", "Set LANGSMITH_API_KEY or LANGCHAIN_API_KEY environment variable");
     return;
   }
 
@@ -448,7 +495,7 @@ async function checkLangSmith(results) {
       );
     }
   } else {
-    addResult(results, "warn", "Configured LangSmith project", "none set in env");
+    addResult(results, "warn", "Configured LangSmith project", "none set in env", "Set DEEPAGENTS_LANGSMITH_PROJECT environment variable");
   }
 }
 
@@ -479,7 +526,7 @@ async function runSmokeCheck(results) {
   addResult(results, "warn", "DeepAgents smoke check", detail);
 }
 
-function printSummary(results) {
+function printTextSummary(results) {
   const okCount = results.filter((item) => item.level === "ok").length;
   const warnCount = results.filter((item) => item.level === "warn").length;
   const failCount = results.filter((item) => item.level === "fail").length;
@@ -490,8 +537,33 @@ function printSummary(results) {
   console.log("");
 
   for (const item of results) {
-    console.log(`${levelTag(item.level)} ${item.title}: ${item.message}`);
+    const redacted = redactResult(item);
+    const parts = [`${levelTag(redacted.level)} ${redacted.title}: ${redacted.message}`];
+    if (redacted.remediation) {
+      parts.push(`  -> ${redacted.remediation}`);
+    }
+    console.log(parts.join("\n"));
   }
+}
+
+function printJsonSummary(results) {
+  const okCount = results.filter((item) => item.level === "ok").length;
+  const warnCount = results.filter((item) => item.level === "warn").length;
+  const failCount = results.filter((item) => item.level === "fail").length;
+
+  const report = {
+    schema_version: 1,
+    timestamp: new Date().toISOString(),
+    summary: {
+      ok: okCount,
+      warn: warnCount,
+      fail: failCount,
+      total: results.length,
+    },
+    checks: results.map(redactResult),
+  };
+
+  console.log(JSON.stringify(report, null, 2));
 }
 
 async function main() {
@@ -512,11 +584,21 @@ async function main() {
     await runSmokeCheck(results);
   }
 
-  printSummary(results);
+  if (args.format === "json") {
+    printJsonSummary(results);
+  } else {
+    printTextSummary(results);
+  }
 
   const failCount = results.filter((item) => item.level === "fail").length;
   const warnCount = results.filter((item) => item.level === "warn").length;
-  if (failCount > 0 || (args.strict && warnCount > 0)) {
+  if (args.strict) {
+    const failThreshold = args.failThreshold >= 0 ? args.failThreshold : 1;
+    const warnThreshold = args.warnThreshold >= 0 ? args.warnThreshold : -1;
+    if (failCount >= failThreshold || (warnThreshold >= 0 && warnCount >= warnThreshold)) {
+      process.exit(1);
+    }
+  } else if (failCount > 0) {
     process.exit(1);
   }
 }
