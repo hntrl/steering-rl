@@ -134,6 +134,56 @@ export function isPidAlive(pid) {
   }
 }
 
+export function canonicalizeRuns(runs) {
+  const taskGroups = new Map();
+  for (const run of runs) {
+    const key = run.task_id;
+    if (!key) continue;
+    if (!taskGroups.has(key)) {
+      taskGroups.set(key, []);
+    }
+    taskGroups.get(key).push(run);
+  }
+
+  const result = [];
+  for (const [taskId, group] of taskGroups.entries()) {
+    const mergedRuns = group.filter((r) => r.status === "merged");
+    if (mergedRuns.length === 0) {
+      result.push(...group);
+      continue;
+    }
+
+    const sorted = mergedRuns.sort((a, b) =>
+      String(b.updated_at || "").localeCompare(String(a.updated_at || "")),
+    );
+    const canonical = { ...sorted[0] };
+
+    for (const stale of sorted.slice(1)) {
+      if (!canonical.merged_at && stale.merged_at) {
+        canonical.merged_at = stale.merged_at;
+      }
+    }
+
+    const kept = [];
+    for (const run of group) {
+      if (run.status === "merged") continue;
+      if (run.status === "ready_for_review" || run.status === "dispatched") continue;
+      kept.push(run);
+    }
+
+    result.push(canonical, ...kept);
+  }
+
+  return result;
+}
+
+export async function writeCanonicalizedRuns(stateDir) {
+  const runs = await readRuns(stateDir);
+  const canonicalized = canonicalizeRuns(runs);
+  await writeRuns(stateDir, canonicalized);
+  return canonicalized;
+}
+
 export async function markStaleRunningRuns(stateDir) {
   const runs = await readRuns(stateDir);
   let changed = false;
