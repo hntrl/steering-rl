@@ -16,7 +16,8 @@
     "canary:simulation": "pnpm --filter @steering-rl/rollout run canary:simulation",
     "sweep:gemma4:stageA": "node jobs/sweeps/gemma4-stage-a.ts",
     "sweep:gemma4:stageB": "node jobs/sweeps/gemma4-stage-b.ts",
-    "sweep:gemma4:test": "node jobs/sweeps/tests/gemma4-sweeps.test.ts"
+    "sweep:gemma4:test": "node jobs/sweeps/tests/gemma4-sweeps.test.ts",
+    "trace-miner:dry-run": "pnpm --filter trace-miner run dry-run"
   },
   "devDependencies": {
     "@redocly/cli": "^1.34.2",

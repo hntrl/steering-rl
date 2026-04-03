@@ -1,60 +1,43 @@
-## P0-12: Gemma 4 Stage A/B Sweep Automation
+## P0-10: Trace mining to dataset pipeline
 
-### Goal
-Automate Gemma 4 baseline and single-layer sweep campaigns for challenger profile generation.
+Build a nightly job that turns production failure traces into curated eval dataset artifacts.
 
-### What changed
+### What this does
 
-| File | Purpose |
-|------|---------|
-| `jobs/sweeps/gemma4-stage-a.ts` | Stage A — no-steering baseline quality run |
-| `jobs/sweeps/gemma4-stage-b.ts` | Stage B — single-layer sweep (layers 16–53) |
-| `jobs/sweeps/tests/gemma4-sweeps.test.ts` | 15 tests covering config, reproducibility, gates, output format |
-| `artifacts/sweeps/README.md` | Artifact format documentation |
-| `package.json` | Added `sweep:gemma4:stageA`, `sweep:gemma4:stageB`, `sweep:gemma4:test` scripts |
-| `.gitignore` | Ignore generated JSON artifacts |
+- **`services/trace-miner/src/dedup.ts`** — Deterministic dedup via SHA-256 over `normalized(input + failureType)`. Clustering by failure type with deterministic labels (`cluster-{failureType}`). Metadata sanitization strips secrets before export.
+- **`services/trace-miner/src/pipeline.ts`** — Full pipeline: sanitize -> dedup -> cluster -> export dataset JSON + changelog Markdown. Dry-run mode computes everything without writing files or mutating remote datasets.
+- **`services/trace-miner/src/cli.ts`** — CLI entry point with `--dry-run` flag.
+- **`services/trace-miner/tests/pipeline.test.ts`** — 22 tests covering content hashing, cluster labels, dedup behavior, metadata sanitization, dataset naming, pipeline export, dry-run mode, and secret redaction.
 
-### Constraints satisfied
-- ✅ Model revision (`2026-06-01`) and dataset version (`steer-core-golden-v20260601`) recorded in all outputs
-- ✅ Sweep config is reproducible and seed-controlled (seed `20260601`, Mulberry32 PRNG)
-- ✅ Output artifacts are JSON, ingestible by gate checker
+### Dataset naming
 
-### Definition of done
-- ✅ Stage A baseline run completes with reproducible config
-- ✅ Stage B single-layer sweep emits per-layer quality metrics (228 configurations)
-- ✅ Results include challenger profile candidates for Stage C (6 candidates ranked by composite score)
+Follows `steer-{suite}-{source}-v{YYYYMMDD}` convention per `feedback-loop.md`.
 
 ### Verify command output
 
 ```
-> pnpm run sweep:gemma4:stageA && pnpm run sweep:gemma4:stageB
+$ pnpm test --filter trace-miner && pnpm run trace-miner:dry-run
 
-[Stage A] Model: gemma-4-27b-it (rev 2026-06-01)
-[Stage A] Dataset: steer-core-golden-v20260601
-[Stage A] Seed: 20260601
-[Stage A] Baseline metrics:
-  coherence:          0.9115
-  correctness:        0.8855
-  degenerate_rate:    0
-  language_stability: 1
-  latency_p50_ms:     1142.5
-  latency_p95_ms:     1389
-[Stage A] Hard gates: pass
-[Stage A] PASS — baseline complete.
+ ✓ tests/pipeline.test.ts (22 tests) 8ms
 
-[Stage B] Configurations tested: 228
-[Stage B] Passed hard gates: 6
-[Stage B] Top challenger candidates for Stage C:
-  #1 layer=41 mult=0.22 rank_score=0.8285 coherence=0.8923 adherence=0.7006 degen=0
-  #2 layer=41 mult=0.3  rank_score=0.8269 coherence=0.8918 adherence=0.7292 degen=0
-  #3 layer=41 mult=0.15 rank_score=0.8179 coherence=0.8973 adherence=0.6544 degen=0
-  #4 layer=47 mult=0.15 rank_score=0.8127 coherence=0.8926 adherence=0.6348 degen=0
-  #5 layer=35 mult=0.1  rank_score=0.8125 coherence=0.8951 adherence=0.6389 degen=0
-  #6 layer=41 mult=0.05 rank_score=0.8112 coherence=0.9021 adherence=0.6211 degen=0
-[Stage B] PASS — challenger candidates ready for Stage C.
+ Test Files  1 passed (1)
+      Tests  22 passed (22)
+
+[dry-run] Pipeline would produce dataset: steer-core-prodtrace-v20260403
+[dry-run] 3 examples in 3 clusters (from 4 traces)
+[dry-run] No files written.
+Result: 3 examples, 3 clusters
+Dry run completed — no remote datasets mutated.
 ```
 
-Tests: 15/15 passing (`pnpm run sweep:gemma4:test`)
+### Definition of done
+
+- [x] Pipeline exports dataset artifact and summary changelog
+- [x] Dry run mode works without mutating remote datasets
+- [x] Dedup behavior covered by tests
 
 ### Rollback note
-If sweep automation fails, pause Gemma 4 promotion work and keep Gemma 3 champion profile active.
+
+If pipeline quality is poor, pause dataset promotion and keep previous stable dataset versions pinned in eval runs.
+
+Closes #10
