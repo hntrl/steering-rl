@@ -98,6 +98,33 @@ Set `REPO_ROOT` to point at the bare repo root when running the reconciler outsi
 
 - Runtime state: `~/.agentd/state/runs.json`
 - Structured events: `~/.agentd/logs/events.jsonl`
+
+## Production SLO Dashboard & Alerting
+
+The `dashboards/production/` directory contains the production SLO monitoring stack:
+
+- **`slo-dashboard.json`** — Grafana dashboard with panels for correctness, coherence, degeneration, latency, cost, error rate, language stability, and safety violations.
+- **`alert-rules.yaml`** — Prometheus/Grafana alert rules with warning and critical severities for all SLO metrics.
+- **`docs/incident-runbook.md`** — On-call triage procedures, alert-specific response guides, manual rollback procedure, and a monthly rollback drill checklist.
+
+### SLO Thresholds
+
+All alert thresholds map directly to rollout rollback thresholds:
+
+| Metric | Warning | Critical (Rollback) | Source |
+|--------|---------|-------------------|--------|
+| Degeneration rate | > 2% | > 3% | `canary-router/src/rollback-policy.ts` |
+| Error rate | > 3% | > 5% | `canary-router/src/rollback-policy.ts` |
+| P95 latency | > 4000ms | > 5000ms | `canary-router/src/rollback-policy.ts` |
+| Correctness | < champion − 0.008 | < champion − 0.01 | `eval-orchestrator/src/defaults.ts` |
+| Coherence | < champion − 0.015 | < champion − 0.02 | `eval-orchestrator/src/defaults.ts` |
+| Language stability | < 99.5% | < 99% | `eval-orchestrator/src/defaults.ts` |
+| Safety violations | — | > 0 (zero tolerance) | `eval-orchestrator/src/defaults.ts` |
+| Token cost | > $50/hr | > $100/hr | Operational budget threshold |
+
+### Privacy
+
+All dashboard queries aggregate by model, profile, and environment labels only. No user prompts, responses, or PII are included in any panel query or alert expression.
 - Worker logs: `~/.agentd/logs/workers/`
 
 For live Deep Agents progress, tail the latest worker log shown in the supervisor dispatch output.

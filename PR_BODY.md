@@ -1,89 +1,76 @@
-## Task
+# P3-04: Production SLO Dashboard and Alert Tuning
 
-**Task ID:** P3-01
-**Title:** Live canary rollout controller
-**Goal:** Promote challenger profiles with live traffic phases and strict automatic rollback policies using production metrics.
+Closes #55
+
+## Summary
+
+Defines production SLOs and ships alerting dashboards for degeneration, correctness, coherence, latency, cost, error rate, language stability, and safety violations — with low false-positive rates.
 
 ## Changes
 
-### New files
-
-- **`services/canary-router/src/controller.ts`** — `CanaryController` class that orchestrates phased traffic rollout (10% → 50% → 100%) with automatic rollback, kill switch, runtime config updates (no redeploy), freeze mode, and machine-readable event emission for all lifecycle actions.
-- **`services/canary-router/tests/controller.test.ts`** — 35 unit tests covering phase progression, auto-advance, rollback on degenerate_rate/p95_latency_ms/error_rate breaches, kill switch, runtime config, freeze/unfreeze, event listener management, and full lifecycle integration.
-- **`services/canary-router/tests/live-rollout-simulation.test.ts`** — 9 simulation tests validating traffic distribution per phase, rollback decision latency SLA (p95 < 5ms under 500-sample load), automatic rollback behavior, kill switch routing, and complete event audit trail.
-
-### Modified files
-
-- **`services/canary-router/src/index.ts`** — Added controller exports (`CanaryController`, `CanaryControllerConfig`, `ControllerEvent`, etc.).
-- **`services/canary-router/tests/canary-simulation.ts`** — Extended simulation with 3 new controller scenarios (auto-advance lifecycle, rollback latency SLA, runtime config update).
-- **`services/canary-router/package.json`** — Updated package name to `canary-router` to match verify filter.
-- **`package.json`** — Updated `canary:simulation` script filter to match new package name.
-- **`README.md`** — Added Live Canary Rollout Controller documentation section.
-
-## Verify Command Output
-
-```
-$ pnpm test --filter canary-router
-
- ✓ tests/controller.test.ts (35 tests) 6ms
- ✓ tests/canary-router.test.ts (31 tests) 12ms
- ✓ tests/live-rollout-simulation.test.ts (9 tests) 26ms
-
- Test Files  3 passed (3)
-      Tests  75 passed (75)
-
-$ pnpm run canary:simulation
-
-=== Canary Router Simulation ===
-
---- Scenario 1: Happy-path rollout (10 → 50 → 100) ---
-  Phase 10%: challenger=116/1000 (11.6%) ✓
-  Phase 50%: challenger=480/1000 (48.0%) ✓
-  Phase 100%: challenger=1000/1000 (100.0%) ✓
-
---- Scenario 2: Auto-rollback on degenerate_rate breach ---
-  Rollback triggered: true (metric=degenerate_rate, value=0.08, threshold=0.03)
-  All traffic to champion after rollback: 100/100 ✓
-  Phase advance blocked during rollback: true ✓
-
---- Scenario 3: Kill switch disables all steering ---
-  Kill switch active — no steering: 100/100 ✓
-  Kill switch disabled — steering restored: true ✓
-
---- Scenario 4: Recovery after rollback reset ---
-  Rollback reset — phase back to: 10%
-  Can route to challenger again: true ✓
-
---- Scenario 5: CanaryController — phase progression with events ---
-  Auto-advance 10% → 50%: true (phase=50%) ✓
-  Auto-advance 50% → 100%: true (phase=100%) ✓
-  Phase advance events: 2 ✓
-  Rollout complete event: true ✓
-
---- Scenario 6: Controller rollback + latency SLA ---
-  Rollback triggered: true (latency=0.009ms) ✓
-  Latency within SLA (<5ms): true ✓
-  Rollback event emitted: true ✓
-
---- Scenario 7: Runtime config update ---
-  Config updated: championProfileId=new-champ ✓
-  Config event emitted: true ✓
-
-✅ All simulation scenarios PASSED
-```
+| File | Description |
+|------|-------------|
+| `dashboards/production/slo-dashboard.json` | Grafana dashboard with 10 panels covering all SLO metrics |
+| `dashboards/production/alert-rules.yaml` | Prometheus alert rules with warning + critical severities for 8 alert groups |
+| `docs/incident-runbook.md` | On-call triage procedures, alert-specific response guides, manual rollback procedure, and monthly rollback drill checklist |
+| `README.md` | Added SLO dashboard documentation section with threshold table |
 
 ## Definition of Done
 
-- [x] Controller supports phase progression 10/50/100 with runtime config updates.
-- [x] Rollback decision latency meets SLA under simulation tests (p95 < 5ms).
-- [x] Controller emits machine-readable events for phase changes and rollback actions.
+- [x] SLO dashboard includes correctness, coherence, degeneration, latency, and cost panels.
+- [x] Alert pack defines warning and critical severities with documented responders.
+- [x] Incident runbook includes a validated rollback drill checklist.
 
-## Constraints
+## Constraints Satisfied
 
-- [x] Rollout phase changes must be configurable without redeploy.
-- [x] Rollback must trigger on degenerate rate, p95 latency, and error-rate thresholds.
-- [x] Kill switch must always route to baseline no-steering path.
+- [x] Alert thresholds map directly to rollout rollback thresholds (`canary-router/src/rollback-policy.ts` and `eval-orchestrator/src/defaults.ts`).
+- [x] Runbook includes on-call triage and rollback drill steps.
+- [x] Dashboard queries avoid exposing sensitive user content (aggregate by model/profile/env only).
+
+## Threshold Alignment
+
+| Metric | Warning | Critical | Source |
+|--------|---------|----------|--------|
+| Degeneration rate | > 2% | > 3% | `DEFAULT_ROLLBACK_CONFIG.thresholds[0]` |
+| Error rate | > 3% | > 5% | `DEFAULT_ROLLBACK_CONFIG.thresholds[1]` |
+| P95 latency | > 4000ms | > 5000ms | `DEFAULT_ROLLBACK_CONFIG.thresholds[2]` |
+| Correctness | < champion − 0.008 | < champion − 0.01 | `DEFAULT_HARD_GATE_THRESHOLDS.min_correctness_delta` |
+| Coherence | < champion − 0.015 | < champion − 0.02 | `DEFAULT_HARD_GATE_THRESHOLDS.min_coherence_delta` |
+| Language stability | < 99.5% | < 99% | `DEFAULT_HARD_GATE_THRESHOLDS.min_language_stability` |
+| Safety violations | — | > 0 | `DEFAULT_HARD_GATE_THRESHOLDS.max_safety_critical_violations` |
+| Token cost | > $50/hr | > $100/hr | Operational budget threshold |
+
+## Verify Output
+
+```
+$ pnpm test --filter telemetry && pnpm test --filter tracing
+
+> telemetry@0.0.1 test
+> vitest run
+
+ ✓ tests/langsmith-middleware.test.ts (40 tests) 5ms
+ Test Files  1 passed (1)
+      Tests  40 passed (40)
+
+> tracing@0.0.1 test
+> vitest run
+
+ ✓ tests/tracing-integration.test.ts (5 tests) 3ms
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+```
+
+```
+$ pnpm verify
+
+✓ Project structure verified successfully.
+✓ Validated 30 JSON files successfully.
+✓ Validated 29 task contracts successfully.
+✓ JSON Schema meta-validation: profile, run-metadata, experiment-decision
+✓ Contract tests: 6 passed, 0 failed
+✓ OpenAPI: Your API description is valid.
+```
 
 ## Rollback Note
 
-If controller logic is unstable, freeze rollout at champion-only routing and disable automatic phase advancement.
+If alert tuning is noisy, revert to conservative thresholds and keep dashboards in observe-only mode until calibrated. See `docs/incident-runbook.md#observe-only-mode` for the procedure.

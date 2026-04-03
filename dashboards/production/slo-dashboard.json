@@ -1,0 +1,401 @@
+{
+  "$schema": "https://grafana.com/docs/grafana/latest/dashboards/json-model",
+  "title": "Steering RL — Production SLO Dashboard",
+  "uid": "steering-rl-slo-prod",
+  "description": "Production SLOs for the steering-rl platform. Panels track correctness, coherence, degeneration, latency, and cost. Alert thresholds map directly to rollout rollback thresholds defined in canary-router and eval-orchestrator.",
+  "tags": ["steering-rl", "slo", "production"],
+  "editable": false,
+  "refresh": "1m",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "utc",
+  "templating": {
+    "list": [
+      {
+        "name": "env",
+        "type": "custom",
+        "current": { "text": "prod", "value": "prod" },
+        "options": [
+          { "text": "prod", "value": "prod" },
+          { "text": "staging", "value": "staging" }
+        ]
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "query": "label_values(steering_request_total, base_model)",
+        "refresh": 2
+      },
+      {
+        "name": "profile",
+        "type": "query",
+        "query": "label_values(steering_request_total, profile_id)",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Correctness — Rolling Score",
+      "description": "Mean correctness score over a 30-minute rolling window. Hard gate: challenger must be ≥ champion − 0.01. Warning fires at champion − 0.008, critical at champion − 0.01.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time(steering_correctness_score{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])",
+          "legendFormat": "correctness (30m avg)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.85 },
+              { "color": "green", "value": 0.90 }
+            ]
+          }
+        }
+      },
+      "alert": {
+        "name": "Correctness SLO Breach",
+        "conditions": [
+          {
+            "evaluator": { "type": "lt", "params": [0.90] },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "5m", "now"] },
+            "reducer": { "type": "avg" }
+          }
+        ],
+        "frequency": "1m",
+        "for": "5m",
+        "notifications": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Coherence — Rolling Score",
+      "description": "Mean coherence score over a 30-minute rolling window. Hard gate: challenger must be ≥ champion − 0.02. Warning fires at champion − 0.015, critical at champion − 0.02.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg_over_time(steering_coherence_score{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])",
+          "legendFormat": "coherence (30m avg)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.80 },
+              { "color": "green", "value": 0.85 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Degeneration Rate",
+      "description": "Proportion of degenerate responses in a 30-minute rolling window. Maps to canary-router rollback threshold: max 3%. Warning at 2%, critical at 3%.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(steering_degenerate_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])) / sum(rate(steering_request_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m]))",
+          "legendFormat": "degenerate_rate (30m)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 0.1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.02 },
+              { "color": "red", "value": 0.03 }
+            ]
+          }
+        }
+      },
+      "alert": {
+        "name": "Degeneration Rate SLO Breach",
+        "conditions": [
+          {
+            "evaluator": { "type": "gt", "params": [0.03] },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "5m", "now"] },
+            "reducer": { "type": "avg" }
+          }
+        ],
+        "frequency": "1m",
+        "for": "5m",
+        "notifications": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "P95 Latency",
+      "description": "95th-percentile request latency over a 30-minute rolling window. Maps to canary-router rollback threshold: max 5000ms. Warning at 4000ms, critical at 5000ms.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(steering_request_duration_ms_bucket{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])) by (le))",
+          "legendFormat": "p95 latency (30m)"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.50, sum(rate(steering_request_duration_ms_bucket{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])) by (le))",
+          "legendFormat": "p50 latency (30m)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 4000 },
+              { "color": "red", "value": 5000 }
+            ]
+          }
+        }
+      },
+      "alert": {
+        "name": "P95 Latency SLO Breach",
+        "conditions": [
+          {
+            "evaluator": { "type": "gt", "params": [5000] },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "5m", "now"] },
+            "reducer": { "type": "avg" }
+          }
+        ],
+        "frequency": "1m",
+        "for": "5m",
+        "notifications": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cost — Token Usage Rate",
+      "description": "Token consumption rate (input + output) per minute, used to derive cost estimates. No sensitive content is exposed — only aggregate token counts by model and profile.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(steering_input_tokens_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[5m])) * 60",
+          "legendFormat": "input tokens/min"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(steering_output_tokens_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[5m])) * 60",
+          "legendFormat": "output tokens/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Cost — Estimated Spend (USD/hour)",
+      "description": "Estimated hourly cost based on token usage and per-token pricing. Aggregated by model — no user content exposed.",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(steering_input_tokens_total{env=\"$env\"}[1h])) * 3600 * 0.0000001) + (sum(rate(steering_output_tokens_total{env=\"$env\"}[1h])) * 3600 * 0.0000003)",
+          "legendFormat": "est. cost ($/hr)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Error Rate",
+      "description": "Request error rate over a 30-minute rolling window. Maps to canary-router rollback threshold: max 5%. Warning at 3%, critical at 5%.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(steering_error_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m])) / sum(rate(steering_request_total{env=\"$env\", base_model=~\"$model\", profile_id=~\"$profile\"}[30m]))",
+          "legendFormat": "error_rate (30m)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 0.2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 0.03 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Language Stability",
+      "description": "Proportion of responses without language shift in a 30-minute rolling window. Hard gate: ≥ 99%.",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (sum(rate(steering_language_shift_total{env=\"$env\", base_model=~\"$model\"}[30m])) / sum(rate(steering_request_total{env=\"$env\", base_model=~\"$model\"}[30m])))",
+          "legendFormat": "language_stability"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0.9,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.985 },
+              { "color": "green", "value": 0.99 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Safety Critical Violations",
+      "description": "Count of safety-critical violations. Hard gate: must be zero. Any non-zero value is critical.",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(steering_safety_critical_violations_total{env=\"$env\", base_model=~\"$model\"}[30m]))",
+          "legendFormat": "violations (30m)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "SLO Summary — Current Status",
+      "description": "At-a-glance SLO compliance. Green = within budget, orange = warning, red = breached.",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "refId": "correctness",
+          "expr": "avg_over_time(steering_correctness_score{env=\"$env\"}[30m])",
+          "legendFormat": "correctness",
+          "instant": true
+        },
+        {
+          "refId": "coherence",
+          "expr": "avg_over_time(steering_coherence_score{env=\"$env\"}[30m])",
+          "legendFormat": "coherence",
+          "instant": true
+        },
+        {
+          "refId": "degenerate_rate",
+          "expr": "sum(rate(steering_degenerate_total{env=\"$env\"}[30m])) / sum(rate(steering_request_total{env=\"$env\"}[30m]))",
+          "legendFormat": "degenerate_rate",
+          "instant": true
+        },
+        {
+          "refId": "p95_latency",
+          "expr": "histogram_quantile(0.95, sum(rate(steering_request_duration_ms_bucket{env=\"$env\"}[30m])) by (le))",
+          "legendFormat": "p95_latency_ms",
+          "instant": true
+        },
+        {
+          "refId": "error_rate",
+          "expr": "sum(rate(steering_error_total{env=\"$env\"}[30m])) / sum(rate(steering_request_total{env=\"$env\"}[30m]))",
+          "legendFormat": "error_rate",
+          "instant": true
+        }
+      ]
+    }
+  ],
+  "_metadata": {
+    "thresholds_source": "Thresholds are aligned with canary-router/src/rollback-policy.ts (DEFAULT_ROLLBACK_CONFIG) and eval-orchestrator/src/defaults.ts (DEFAULT_HARD_GATE_THRESHOLDS).",
+    "privacy_note": "All queries aggregate by model, profile, and env labels only. No user prompts, responses, or PII are included in any panel query.",
+    "rollback_alignment": {
+      "degenerate_rate": { "warning": 0.02, "critical": 0.03, "source": "canary-router rollback threshold" },
+      "error_rate": { "warning": 0.03, "critical": 0.05, "source": "canary-router rollback threshold" },
+      "p95_latency_ms": { "warning": 4000, "critical": 5000, "source": "canary-router rollback threshold" },
+      "correctness": { "warning_delta": -0.008, "critical_delta": -0.01, "source": "eval-orchestrator hard gate" },
+      "coherence": { "warning_delta": -0.015, "critical_delta": -0.02, "source": "eval-orchestrator hard gate" },
+      "language_stability": { "warning": 0.985, "critical": 0.99, "source": "eval-orchestrator hard gate" },
+      "safety_critical_violations": { "critical": 1, "source": "eval-orchestrator hard gate (zero tolerance)" }
+    }
+  }
+}

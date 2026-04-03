@@ -1,0 +1,325 @@
+# Steering RL — Production Alert Rules
+#
+# All thresholds map directly to rollout rollback thresholds defined in:
+#   - canary-router/src/rollback-policy.ts (DEFAULT_ROLLBACK_CONFIG)
+#   - eval-orchestrator/src/defaults.ts (DEFAULT_HARD_GATE_THRESHOLDS)
+#
+# Privacy: No queries reference user prompts, responses, or PII.
+# All queries aggregate by model, profile, and env labels only.
+
+groups:
+  - name: steering-slo-degeneration
+    interval: 1m
+    rules:
+      - alert: DegenerationRateWarning
+        expr: >
+          (sum(rate(steering_degenerate_total{env="prod"}[30m]))
+           / sum(rate(steering_request_total{env="prod"}[30m])))
+          > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: degeneration
+        annotations:
+          summary: "Degeneration rate above 2% warning threshold"
+          description: >
+            Degeneration rate {{ $value | humanizePercentage }} exceeds the 2%
+            warning threshold over a 30-minute rolling window. Investigate
+            recent model or profile changes. If sustained, expect auto-rollback
+            at 3%.
+          runbook_url: "docs/incident-runbook.md#degeneration-rate-breach"
+          rollback_threshold: "3% (canary-router DEFAULT_ROLLBACK_CONFIG)"
+
+      - alert: DegenerationRateCritical
+        expr: >
+          (sum(rate(steering_degenerate_total{env="prod"}[30m]))
+           / sum(rate(steering_request_total{env="prod"}[30m])))
+          > 0.03
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: degeneration
+        annotations:
+          summary: "Degeneration rate above 3% critical threshold — rollback imminent"
+          description: >
+            Degeneration rate {{ $value | humanizePercentage }} exceeds the 3%
+            rollback threshold. Canary-router will trigger auto-rollback.
+            Verify rollback executed successfully and investigate root cause.
+          runbook_url: "docs/incident-runbook.md#degeneration-rate-breach"
+          rollback_threshold: "3% (canary-router DEFAULT_ROLLBACK_CONFIG)"
+          responders: "steering-oncall, ml-platform-lead"
+
+  - name: steering-slo-correctness
+    interval: 1m
+    rules:
+      - alert: CorrectnessScoreWarning
+        expr: >
+          avg_over_time(steering_correctness_score{env="prod"}[30m])
+          < (avg_over_time(steering_correctness_score{env="prod", candidate="champion"}[1h]) - 0.008)
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: correctness
+        annotations:
+          summary: "Correctness score approaching hard gate threshold"
+          description: >
+            Correctness score is {{ $value | humanize }} which is within 0.008
+            of the champion baseline. Hard gate fires at champion − 0.01.
+          runbook_url: "docs/incident-runbook.md#correctness-score-drop"
+          rollback_threshold: "champion − 0.01 (eval-orchestrator hard gate)"
+
+      - alert: CorrectnessScoreCritical
+        expr: >
+          avg_over_time(steering_correctness_score{env="prod"}[30m])
+          < (avg_over_time(steering_correctness_score{env="prod", candidate="champion"}[1h]) - 0.01)
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: correctness
+        annotations:
+          summary: "Correctness score below hard gate — rollback required"
+          description: >
+            Correctness score is {{ $value | humanize }}, below the hard gate
+            threshold of champion − 0.01. Candidate should be rolled back.
+          runbook_url: "docs/incident-runbook.md#correctness-score-drop"
+          rollback_threshold: "champion − 0.01 (eval-orchestrator hard gate)"
+          responders: "steering-oncall, ml-platform-lead"
+
+  - name: steering-slo-coherence
+    interval: 1m
+    rules:
+      - alert: CoherenceScoreWarning
+        expr: >
+          avg_over_time(steering_coherence_score{env="prod"}[30m])
+          < (avg_over_time(steering_coherence_score{env="prod", candidate="champion"}[1h]) - 0.015)
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: coherence
+        annotations:
+          summary: "Coherence score approaching hard gate threshold"
+          description: >
+            Coherence score is {{ $value | humanize }} which is within 0.015
+            of the champion baseline. Hard gate fires at champion − 0.02.
+          runbook_url: "docs/incident-runbook.md#coherence-score-drop"
+          rollback_threshold: "champion − 0.02 (eval-orchestrator hard gate)"
+
+      - alert: CoherenceScoreCritical
+        expr: >
+          avg_over_time(steering_coherence_score{env="prod"}[30m])
+          < (avg_over_time(steering_coherence_score{env="prod", candidate="champion"}[1h]) - 0.02)
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: coherence
+        annotations:
+          summary: "Coherence score below hard gate — rollback required"
+          description: >
+            Coherence score is {{ $value | humanize }}, below the hard gate
+            threshold of champion − 0.02. Candidate should be rolled back.
+          runbook_url: "docs/incident-runbook.md#coherence-score-drop"
+          rollback_threshold: "champion − 0.02 (eval-orchestrator hard gate)"
+          responders: "steering-oncall, ml-platform-lead"
+
+  - name: steering-slo-latency
+    interval: 1m
+    rules:
+      - alert: P95LatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(steering_request_duration_ms_bucket{env="prod"}[30m])) by (le))
+          > 4000
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: latency
+        annotations:
+          summary: "P95 latency above 4000ms warning threshold"
+          description: >
+            P95 latency is {{ $value | humanize }}ms, above the 4000ms warning
+            threshold. Rollback triggers at 5000ms.
+          runbook_url: "docs/incident-runbook.md#p95-latency-breach"
+          rollback_threshold: "5000ms (canary-router DEFAULT_ROLLBACK_CONFIG)"
+
+      - alert: P95LatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(steering_request_duration_ms_bucket{env="prod"}[30m])) by (le))
+          > 5000
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: latency
+        annotations:
+          summary: "P95 latency above 5000ms critical threshold — rollback imminent"
+          description: >
+            P95 latency is {{ $value | humanize }}ms, exceeding the 5000ms
+            rollback threshold. Canary-router will trigger auto-rollback.
+          runbook_url: "docs/incident-runbook.md#p95-latency-breach"
+          rollback_threshold: "5000ms (canary-router DEFAULT_ROLLBACK_CONFIG)"
+          responders: "steering-oncall, ml-platform-lead, infra-oncall"
+
+  - name: steering-slo-error-rate
+    interval: 1m
+    rules:
+      - alert: ErrorRateWarning
+        expr: >
+          (sum(rate(steering_error_total{env="prod"}[30m]))
+           / sum(rate(steering_request_total{env="prod"}[30m])))
+          > 0.03
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: error_rate
+        annotations:
+          summary: "Error rate above 3% warning threshold"
+          description: >
+            Error rate {{ $value | humanizePercentage }} exceeds the 3%
+            warning threshold. Rollback triggers at 5%.
+          runbook_url: "docs/incident-runbook.md#error-rate-spike"
+          rollback_threshold: "5% (canary-router DEFAULT_ROLLBACK_CONFIG)"
+
+      - alert: ErrorRateCritical
+        expr: >
+          (sum(rate(steering_error_total{env="prod"}[30m]))
+           / sum(rate(steering_request_total{env="prod"}[30m])))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: error_rate
+        annotations:
+          summary: "Error rate above 5% critical threshold — rollback imminent"
+          description: >
+            Error rate {{ $value | humanizePercentage }} exceeds the 5%
+            rollback threshold. Canary-router will trigger auto-rollback.
+          runbook_url: "docs/incident-runbook.md#error-rate-spike"
+          rollback_threshold: "5% (canary-router DEFAULT_ROLLBACK_CONFIG)"
+          responders: "steering-oncall, ml-platform-lead, infra-oncall"
+
+  - name: steering-slo-cost
+    interval: 5m
+    rules:
+      - alert: TokenCostWarning
+        expr: >
+          (sum(rate(steering_input_tokens_total{env="prod"}[1h])) * 3600 * 0.0000001
+           + sum(rate(steering_output_tokens_total{env="prod"}[1h])) * 3600 * 0.0000003)
+          > 50
+        for: 15m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: cost
+        annotations:
+          summary: "Estimated hourly token cost above $50 warning threshold"
+          description: >
+            Estimated hourly spend is ${{ $value | humanize }}. Investigate
+            whether traffic spike is organic or if a misconfigured profile is
+            generating excessive tokens.
+          runbook_url: "docs/incident-runbook.md#cost-anomaly"
+
+      - alert: TokenCostCritical
+        expr: >
+          (sum(rate(steering_input_tokens_total{env="prod"}[1h])) * 3600 * 0.0000001
+           + sum(rate(steering_output_tokens_total{env="prod"}[1h])) * 3600 * 0.0000003)
+          > 100
+        for: 15m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: cost
+        annotations:
+          summary: "Estimated hourly token cost above $100 critical threshold"
+          description: >
+            Estimated hourly spend is ${{ $value | humanize }}. This may
+            indicate a runaway loop or misconfigured multiplier. Consider
+            throttling traffic or rolling back the latest profile change.
+          runbook_url: "docs/incident-runbook.md#cost-anomaly"
+          responders: "steering-oncall, ml-platform-lead, finance-alerts"
+
+  - name: steering-slo-safety
+    interval: 1m
+    rules:
+      - alert: SafetyCriticalViolation
+        expr: >
+          sum(increase(steering_safety_critical_violations_total{env="prod"}[30m]))
+          > 0
+        for: 0m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: safety
+        annotations:
+          summary: "Safety-critical violation detected — immediate action required"
+          description: >
+            {{ $value }} safety-critical violation(s) detected in the last 30
+            minutes. Zero-tolerance policy applies. Rollback immediately and
+            escalate to ML safety lead.
+          runbook_url: "docs/incident-runbook.md#safety-critical-violation"
+          rollback_threshold: "0 (eval-orchestrator hard gate, zero tolerance)"
+          responders: "steering-oncall, ml-safety-lead, ml-platform-lead"
+
+  - name: steering-slo-language-stability
+    interval: 1m
+    rules:
+      - alert: LanguageStabilityWarning
+        expr: >
+          (1 - sum(rate(steering_language_shift_total{env="prod"}[30m]))
+               / sum(rate(steering_request_total{env="prod"}[30m])))
+          < 0.995
+        for: 5m
+        labels:
+          severity: warning
+          team: steering-oncall
+          slo: language_stability
+        annotations:
+          summary: "Language stability below 99.5% warning threshold"
+          description: >
+            Language stability is {{ $value | humanizePercentage }}. Hard gate
+            fires at 99%. Investigate language-shift patterns.
+          runbook_url: "docs/incident-runbook.md#language-stability-drop"
+          rollback_threshold: "99% (eval-orchestrator hard gate)"
+
+      - alert: LanguageStabilityCritical
+        expr: >
+          (1 - sum(rate(steering_language_shift_total{env="prod"}[30m]))
+               / sum(rate(steering_request_total{env="prod"}[30m])))
+          < 0.99
+        for: 5m
+        labels:
+          severity: critical
+          team: steering-oncall
+          slo: language_stability
+        annotations:
+          summary: "Language stability below 99% hard gate — rollback required"
+          description: >
+            Language stability is {{ $value | humanizePercentage }}, below the
+            99% hard gate. Candidate should be rolled back.
+          runbook_url: "docs/incident-runbook.md#language-stability-drop"
+          rollback_threshold: "99% (eval-orchestrator hard gate)"
+          responders: "steering-oncall, ml-platform-lead"
+
+# -------------------------------------------------------------------
+# Responder Directory
+# -------------------------------------------------------------------
+# severity: warning  → steering-oncall (Slack: #steering-alerts)
+# severity: critical → steering-oncall + ml-platform-lead
+#                      Safety violations also page ml-safety-lead
+#                      Latency/error also page infra-oncall
+#                      Cost anomalies also notify finance-alerts
+#
+# Escalation path:
+#   1. steering-oncall acknowledges within 10 minutes
+#   2. If unacknowledged after 10 min, escalate to ml-platform-lead
+#   3. Safety-critical: immediate page to ml-safety-lead (no wait)
+# -------------------------------------------------------------------
