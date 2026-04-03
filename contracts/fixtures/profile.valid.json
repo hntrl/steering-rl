@@ -1,0 +1,15 @@
+{
+  "profile_id": "steer-gemma3-default-v12",
+  "base_model": "gemma-3-27b-it",
+  "base_model_revision": "2026-03-15",
+  "layers": [23, 29, 35, 41, 47],
+  "fallback_layer": 41,
+  "vector_bundle_id": "vec-bundle-2026-04-01-rc2",
+  "preset_table": {
+    "low": 0.12,
+    "medium": 0.22,
+    "strong": 0.34
+  },
+  "judge_bundle": "judge-v4",
+  "created_at": "2026-04-02T00:00:00Z"
+}

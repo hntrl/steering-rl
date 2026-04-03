@@ -5,7 +5,7 @@ Build a nightly job that turns production failure traces into curated eval datas
 ### What this does
 
 - **`services/trace-miner/src/dedup.ts`** — Deterministic dedup via SHA-256 over `normalized(input + failureType)`. Clustering by failure type with deterministic labels (`cluster-{failureType}`). Metadata sanitization strips secrets before export.
-- **`services/trace-miner/src/pipeline.ts`** — Full pipeline: sanitize → dedup → cluster → export dataset JSON + changelog Markdown. Dry-run mode computes everything without writing files or mutating remote datasets.
+- **`services/trace-miner/src/pipeline.ts`** — Full pipeline: sanitize -> dedup -> cluster -> export dataset JSON + changelog Markdown. Dry-run mode computes everything without writing files or mutating remote datasets.
 - **`services/trace-miner/src/cli.ts`** — CLI entry point with `--dry-run` flag.
 - **`services/trace-miner/tests/pipeline.test.ts`** — 22 tests covering content hashing, cluster labels, dedup behavior, metadata sanitization, dataset naming, pipeline export, dry-run mode, and secret redaction.
 
