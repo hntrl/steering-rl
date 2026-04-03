@@ -1,49 +1,61 @@
 ## Task
 
-**Task ID:** P0-06
-**Title:** Runtime guardrails and backoff ladder
-**Goal:** Detect degeneration and apply safe backoff transitions within a single request.
+**Task ID:** P1-05
+**Title:** Doctor JSON output and alert thresholds
+**Goal:** Add machine-readable doctor output and severity thresholds so scheduled health checks can gate and alert automatically.
 
 ## Changes
 
-### `services/steering-inference-api/src/guardrails/detector.ts`
-- Detects three degeneration signals: **repetition loops** (n-gram frequency), **language shift** (non-Latin character ratio), **entropy collapse** (unique token ratio)
-- Configurable thresholds via `DetectorConfig`
+### `scripts/agent-doctor.mjs`
+- Added `--format json` flag producing structured JSON output conforming to `schemas/doctor-report.schema.json`
+- Added configurable `--strict` mode with `--fail-threshold` and `--warn-threshold` for CI/cron gating
+- Added `remediation` field on failing/warning checks with actionable fix instructions
+- Added secret redaction — `EXECUTOR_BOT_TOKEN`, `LANGSMITH_API_KEY`, `LANGCHAIN_API_KEY` values are never printed raw in text or JSON modes
 
-### `services/steering-inference-api/src/guardrails/backoff-policy.ts`
-- Implements backoff ladder: `strong → medium → low → single-layer → off (no-steering)`
-- Scoped to active request context only — no global state mutation
-- Bounded by `maxBackoffSteps` — no infinite retry loops
-- Emits `TelemetryEvent` for each backoff step
-- `buildPostBackoffMetadata()` produces run metadata with active layers, preset, multiplier, and guardrail event trail
+### `schemas/doctor-report.schema.json`
+- New JSON Schema defining the doctor report structure: `schema_version`, `timestamp`, `summary` (ok/warn/fail/total counts), and `checks` array with `level`, `title`, `message`, and optional `remediation`
 
-### `services/steering-inference-api/tests/guardrails.test.ts`
-- 19 tests covering all detector signals, full/partial backoff sequences, telemetry emission, max-step bounds, and post-backoff metadata
+### `scripts/tests/agent-doctor-json.test.mjs`
+- 8 tests validating JSON schema shape, summary count arithmetic, remediation presence, secret redaction in both JSON and text modes, and strict threshold exit behavior
+
+### `README.md`
+- Documented `--format json`, `--strict`, `--fail-threshold`, and `--warn-threshold` flags
 
 ## Verify Command Output
 
 ```
-pnpm test --filter steering-guardrails
+$ node --test scripts/tests/agent-doctor-json.test.mjs
 
- ✓ tests/guardrails.test.ts (19 tests) 5ms
+▶ doctor --format json
+  ✔ outputs valid JSON matching the doctor-report schema (98ms)
+  ✔ includes remediation on failing checks (95ms)
+  ✔ schema file exists and is valid JSON Schema (0ms)
+✔ doctor --format json (195ms)
+▶ secret redaction
+  ✔ never prints raw secret values in JSON mode (91ms)
+  ✔ never prints raw secret values in text mode (96ms)
+✔ secret redaction (187ms)
+▶ --strict thresholds
+  ✔ exits non-zero in strict mode when failures meet default threshold (106ms)
+  ✔ exits non-zero in strict mode when warnings meet --warn-threshold (89ms)
+  ✔ exits zero when thresholds are not breached (92ms)
+✔ --strict thresholds (288ms)
 
- Test Files  1 passed (1)
-      Tests  19 passed (19)
-   Duration  416ms
+tests 8 | pass 8 | fail 0
 ```
 
 ## Definition of Done
 
-- [x] Guardrail fixtures trigger expected backoff sequence
-- [x] Final metadata reflects post-backoff active layers
-- [x] Fallback to no-steering mode is supported
+- [x] Doctor supports `--format json` with a stable schema
+- [x] Doctor supports `--strict` thresholds suitable for CI and cron alerting
+- [x] Tests validate schema shape and secret-redaction behavior
 
 ## Constraints
 
-- [x] Backoff applies only to active request context
-- [x] No infinite retry loops (bounded by maxBackoffSteps)
-- [x] Emit telemetry for each backoff step
+- [x] JSON output includes summary counts, per-check detail, and recommended remediation actions
+- [x] Never prints raw secret values in text or JSON modes
+- [x] Strict mode returns non-zero exit for configured failure thresholds
 
 ## Rollback Note
 
-If guardrails are overly aggressive, revert to monitor-only mode while preserving telemetry emission.
+If JSON or strict mode causes false alarms, disable strict gating and continue using text-mode doctor checks until thresholds are recalibrated.
