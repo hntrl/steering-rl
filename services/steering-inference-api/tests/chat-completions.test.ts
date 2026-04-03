@@ -1,8 +1,14 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import request from "supertest";
 import express from "express";
 import { createApp } from "../src/app.js";
 import { ProfileRegistry, type SteeringProfile } from "../src/profiles/registry.js";
+import {
+  type ModelAdapter,
+  type ProviderRequest,
+  type ProviderResponse,
+  ProviderError,
+} from "../src/providers/model-adapter.js";
 
 const TEST_PROFILE: SteeringProfile = {
   profile_id: "steer-gemma3-default-v12",
@@ -23,6 +29,44 @@ const TEST_PROFILE: SteeringProfile = {
 function makeApp(profiles?: SteeringProfile[]): express.Express {
   const registry = new ProfileRegistry(profiles ?? [TEST_PROFILE]);
   return createApp(registry);
+}
+
+function makeProviderResponse(overrides: Partial<ProviderResponse> = {}): ProviderResponse {
+  return {
+    id: "chatcmpl-provider-test-001",
+    object: "chat.completion",
+    created: 1714000000,
+    model: "gemma-3-27b-it",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: "Provider response content" },
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: 50,
+      completion_tokens: 20,
+      total_tokens: 70,
+    },
+    ...overrides,
+  };
+}
+
+function makeMockAdapter(
+  impl?: (req: ProviderRequest) => Promise<ProviderResponse>,
+): ModelAdapter {
+  return {
+    chatCompletion: vi.fn(impl ?? (async () => makeProviderResponse())),
+  };
+}
+
+function makeAppWithAdapter(
+  adapter: ModelAdapter,
+  profiles?: SteeringProfile[],
+): express.Express {
+  const registry = new ProfileRegistry(profiles ?? [TEST_PROFILE]);
+  return createApp({ registry, adapter });
 }
 
 function validPayload(overrides: Record<string, unknown> = {}) {
@@ -502,6 +546,270 @@ describe("POST /v1/chat/completions", () => {
     it("ProfileRegistry.resolve returns null for unknown id", () => {
       const registry = new ProfileRegistry([]);
       expect(registry.resolve("unknown")).toBeNull();
+    });
+  });
+
+  describe("provider adapter integration", () => {
+    it("calls the adapter and returns provider response", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(200);
+
+      expect(adapter.chatCompletion).toHaveBeenCalledOnce();
+      expect(res.body.id).toBe("chatcmpl-provider-test-001");
+      expect(res.body.object).toBe("chat.completion");
+      expect(res.body.model).toBe("gemma-3-27b-it");
+      expect(res.body.choices[0].message.content).toBe("Provider response content");
+      expect(res.body.usage.prompt_tokens).toBe(50);
+      expect(res.body.usage.completion_tokens).toBe(20);
+      expect(res.body.usage.total_tokens).toBe(70);
+    });
+
+    it("forwards model and messages to adapter", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload({ temperature: 0.5, max_tokens: 100 }))
+        .expect(200);
+
+      const call = (adapter.chatCompletion as ReturnType<typeof vi.fn>).mock.calls[0][0] as ProviderRequest;
+      expect(call.model).toBe("gemma-3-27b-it");
+      expect(call.messages).toEqual([{ role: "user", content: "Hello" }]);
+      expect(call.temperature).toBe(0.5);
+      expect(call.max_tokens).toBe(100);
+    });
+
+    it("forwards steering params to adapter when profile resolves", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      await request(app)
+        .post("/v1/chat/completions")
+        .send(
+          validPayload({
+            steering: {
+              profile_id: "steer-gemma3-default-v12",
+              concept: "expense-management",
+              preset: "strong",
+              layers: [35, 41],
+              multiplier: 0.3,
+            },
+          }),
+        )
+        .expect(200);
+
+      const call = (adapter.chatCompletion as ReturnType<typeof vi.fn>).mock.calls[0][0] as ProviderRequest;
+      expect(call.steering).toBeDefined();
+      expect(call.steering!.concept).toBe("expense-management");
+      expect(call.steering!.layers).toEqual([35, 41]);
+      expect(call.steering!.multiplier).toBe(0.3);
+      expect(call.steering!.profile_id).toBe("steer-gemma3-default-v12");
+    });
+
+    it("attaches steering_metadata to successful provider responses", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(
+          validPayload({
+            steering: {
+              profile_id: "steer-gemma3-default-v12",
+              concept: "curiosity",
+              preset: "medium",
+            },
+          }),
+        )
+        .expect(200);
+
+      expect(res.body).toHaveProperty("steering_metadata");
+      const meta = res.body.steering_metadata;
+      expect(meta.profile_id).toBe("steer-gemma3-default-v12");
+      expect(meta.active_layers).toEqual([23, 29, 35, 41, 47]);
+      expect(meta.effective_multiplier).toBe(0.22);
+      expect(meta.concept).toBe("curiosity");
+      expect(meta.preset).toBe("medium");
+    });
+
+    it("does not include steering_metadata when no steering config with adapter", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(200);
+
+      expect(res.body).not.toHaveProperty("steering_metadata");
+    });
+  });
+
+  describe("provider error handling", () => {
+    it("maps ProviderError to structured 5xx response with provider_error type", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new ProviderError("Model service unavailable", 502, true, "provider_internal_error");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(502);
+
+      expect(res.body.error).toBeDefined();
+      expect(res.body.error.message).toBe("Model service unavailable");
+      expect(res.body.error.type).toBe("provider_error");
+      expect(res.body.error.code).toBe("provider_internal_error");
+      expect(res.body.error.retryable).toBe(true);
+    });
+
+    it("maps rate limit errors with retryable flag", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new ProviderError("Too many requests", 529, true, "provider_rate_limited");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(529);
+
+      expect(res.body.error.code).toBe("provider_rate_limited");
+      expect(res.body.error.retryable).toBe(true);
+    });
+
+    it("maps connection errors to 502", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new ProviderError("Upstream provider unreachable: fetch failed", 502, true, "provider_connection_error");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(502);
+
+      expect(res.body.error.code).toBe("provider_connection_error");
+      expect(res.body.error.retryable).toBe(true);
+    });
+
+    it("attaches steering_metadata to error responses when profile resolved", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new ProviderError("Provider down", 502, true, "provider_internal_error");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(
+          validPayload({
+            steering: {
+              profile_id: "steer-gemma3-default-v12",
+              concept: "expense-management",
+              preset: "strong",
+            },
+          }),
+        )
+        .expect(502);
+
+      expect(res.body.error).toBeDefined();
+      expect(res.body.steering_metadata).toBeDefined();
+      expect(res.body.steering_metadata.profile_id).toBe("steer-gemma3-default-v12");
+      expect(res.body.steering_metadata.concept).toBe("expense-management");
+      expect(res.body.steering_metadata.preset).toBe("strong");
+      expect(res.body.steering_metadata.effective_multiplier).toBe(0.34);
+    });
+
+    it("does not attach steering_metadata to error responses without steering config", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new ProviderError("Provider down", 502, true, "provider_internal_error");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(502);
+
+      expect(res.body.error).toBeDefined();
+      expect(res.body).not.toHaveProperty("steering_metadata");
+    });
+
+    it("maps unknown errors to 500 with internal_error code", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new Error("Unexpected crash");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(validPayload())
+        .expect(500);
+
+      expect(res.body.error.type).toBe("server_error");
+      expect(res.body.error.code).toBe("internal_error");
+      expect(res.body.error.retryable).toBe(true);
+    });
+
+    it("unknown errors with steering still attach metadata", async () => {
+      const adapter = makeMockAdapter(async () => {
+        throw new Error("Runtime panic");
+      });
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(
+          validPayload({
+            steering: {
+              profile_id: "steer-gemma3-default-v12",
+              concept: "curiosity",
+            },
+          }),
+        )
+        .expect(500);
+
+      expect(res.body.error.code).toBe("internal_error");
+      expect(res.body.steering_metadata).toBeDefined();
+      expect(res.body.steering_metadata.profile_id).toBe("steer-gemma3-default-v12");
+      expect(res.body.steering_metadata.concept).toBe("curiosity");
+    });
+
+    it("validation errors still return 4xx before reaching provider", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send({ messages: [{ role: "user", content: "Hi" }] })
+        .expect(400);
+
+      expect(adapter.chatCompletion).not.toHaveBeenCalled();
+      expect(res.body.error.type).toBe("invalid_request_error");
+    });
+
+    it("profile_not_found still returns 422 before reaching provider", async () => {
+      const adapter = makeMockAdapter();
+      const app = makeAppWithAdapter(adapter);
+
+      const res = await request(app)
+        .post("/v1/chat/completions")
+        .send(
+          validPayload({
+            steering: { profile_id: "nonexistent-v99" },
+          }),
+        )
+        .expect(422);
+
+      expect(adapter.chatCompletion).not.toHaveBeenCalled();
+      expect(res.body.error.code).toBe("profile_not_found");
     });
   });
 });

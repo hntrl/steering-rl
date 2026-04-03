@@ -8,11 +8,32 @@ import {
   ProfileRegistry,
   type SteeringProfile,
 } from "../profiles/registry.js";
+import {
+  type ModelAdapter,
+  type ProviderResponse,
+  ProviderError,
+} from "../providers/model-adapter.js";
 
-export function createChatCompletionsRouter(registry: ProfileRegistry): Router {
+export interface ChatCompletionsRouterOptions {
+  registry: ProfileRegistry;
+  adapter: ModelAdapter;
+}
+
+export function createChatCompletionsRouter(
+  registryOrOpts: ProfileRegistry | ChatCompletionsRouterOptions,
+): Router {
   const router = Router();
 
-  router.post("/v1/chat/completions", (req: Request, res: Response) => {
+  const opts: ChatCompletionsRouterOptions =
+    registryOrOpts instanceof ProfileRegistry
+      ? { registry: registryOrOpts, adapter: undefined as unknown as ModelAdapter }
+      : registryOrOpts;
+
+  const registry = opts.registry;
+  const adapter: ModelAdapter | undefined =
+    registryOrOpts instanceof ProfileRegistry ? undefined : opts.adapter;
+
+  router.post("/v1/chat/completions", async (req: Request, res: Response) => {
     const validation = validateRequest(req.body);
 
     if (!validation.success) {
@@ -52,54 +73,149 @@ export function createChatCompletionsRouter(registry: ProfileRegistry): Router {
       }
     }
 
-    const completionId = `chatcmpl-${uuidv4().replace(/-/g, "").slice(0, 24)}`;
-    const created = Math.floor(Date.now() / 1000);
+    let providerResponse: ProviderResponse | undefined;
 
-    const lastUserMessage = [...body.messages]
-      .reverse()
-      .find((m) => m.role === "user");
+    if (adapter) {
+      try {
+        providerResponse = await adapter.chatCompletion({
+          model: body.model,
+          messages: body.messages,
+          temperature: body.temperature,
+          max_tokens: body.max_tokens,
+          steering: resolvedProfile && activeLayers && effectiveMultiplier !== undefined
+            ? {
+                concept: body.steering?.concept,
+                preset: body.steering?.preset,
+                layers: activeLayers,
+                multiplier: effectiveMultiplier,
+                profile_id: resolvedProfile.profile_id,
+              }
+            : undefined,
+        });
+      } catch (err: unknown) {
+        if (err instanceof ProviderError) {
+          const errorResponse: Record<string, unknown> = {
+            error: {
+              message: err.message,
+              type: "provider_error",
+              param: null,
+              code: err.providerCode,
+              retryable: err.retryable,
+            },
+          };
 
-    const assistantContent = lastUserMessage
-      ? `This is a stub response to: "${lastUserMessage.content}"`
-      : "This is a stub response.";
+          if (resolvedProfile) {
+            errorResponse.steering_metadata = buildSteeringMetadata(
+              resolvedProfile,
+              body,
+              activeLayers,
+              effectiveMultiplier,
+            );
+          }
 
-    const response: Record<string, unknown> = {
-      id: completionId,
-      object: "chat.completion",
-      created,
-      model: body.model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content: assistantContent,
+          res.status(err.statusCode).json(errorResponse);
+          return;
+        }
+
+        const errorResponse: Record<string, unknown> = {
+          error: {
+            message: "Internal server error",
+            type: "server_error",
+            param: null,
+            code: "internal_error",
+            retryable: true,
           },
-          finish_reason: "stop",
-        },
-      ],
-      usage: {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0,
-      },
-    };
+        };
+
+        if (resolvedProfile) {
+          errorResponse.steering_metadata = buildSteeringMetadata(
+            resolvedProfile,
+            body,
+            activeLayers,
+            effectiveMultiplier,
+          );
+        }
+
+        res.status(500).json(errorResponse);
+        return;
+      }
+    }
+
+    const response: Record<string, unknown> = providerResponse
+      ? {
+          id: providerResponse.id,
+          object: providerResponse.object,
+          created: providerResponse.created,
+          model: providerResponse.model,
+          choices: providerResponse.choices,
+          usage: providerResponse.usage,
+        }
+      : buildStubResponse(body);
 
     if (resolvedProfile) {
-      response.steering_metadata = {
-        profile_id: resolvedProfile.profile_id,
-        base_model: resolvedProfile.base_model,
-        base_model_revision: resolvedProfile.base_model_revision,
-        active_layers: activeLayers,
-        effective_multiplier: effectiveMultiplier,
-        vector_bundle_id: resolvedProfile.vector_bundle_id,
-        concept: body.steering?.concept ?? null,
-        preset: body.steering?.preset ?? null,
-      };
+      response.steering_metadata = buildSteeringMetadata(
+        resolvedProfile,
+        body,
+        activeLayers,
+        effectiveMultiplier,
+      );
     }
 
     res.status(200).json(response);
   });
 
   return router;
+}
+
+function buildSteeringMetadata(
+  profile: SteeringProfile,
+  body: ChatCompletionRequest,
+  activeLayers: number[] | undefined,
+  effectiveMultiplier: number | undefined,
+): Record<string, unknown> {
+  return {
+    profile_id: profile.profile_id,
+    base_model: profile.base_model,
+    base_model_revision: profile.base_model_revision,
+    active_layers: activeLayers,
+    effective_multiplier: effectiveMultiplier,
+    vector_bundle_id: profile.vector_bundle_id,
+    concept: body.steering?.concept ?? null,
+    preset: body.steering?.preset ?? null,
+  };
+}
+
+function buildStubResponse(body: ChatCompletionRequest): Record<string, unknown> {
+  const completionId = `chatcmpl-${uuidv4().replace(/-/g, "").slice(0, 24)}`;
+  const created = Math.floor(Date.now() / 1000);
+
+  const lastUserMessage = [...body.messages]
+    .reverse()
+    .find((m) => m.role === "user");
+
+  const assistantContent = lastUserMessage
+    ? `This is a stub response to: "${lastUserMessage.content}"`
+    : "This is a stub response.";
+
+  return {
+    id: completionId,
+    object: "chat.completion",
+    created,
+    model: body.model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: assistantContent,
+        },
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    },
+  };
 }

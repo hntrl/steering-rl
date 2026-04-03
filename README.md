@@ -158,6 +158,29 @@ Event payloads follow `schemas/agent-event.schema.json`.
 pnpm events:validate
 ```
 
+## Steering Inference API
+
+The `services/steering-inference-api/` service exposes an OpenAI-compatible `/v1/chat/completions` endpoint with activation steering support.
+
+### Provider adapter
+
+The route delegates inference to a pluggable `ModelAdapter` interface (`src/providers/model-adapter.ts`). The default `HttpModelAdapter` calls an upstream OpenAI-compatible runtime configured via environment variables:
+
+- `INFERENCE_BASE_URL` — base URL of the model runtime (default: `http://localhost:8000`)
+- `INFERENCE_API_KEY` — optional bearer token for the runtime
+
+When no adapter is injected (e.g. in tests), the route falls back to a deterministic stub path.
+
+Provider failures are mapped to structured 5xx responses with retry-safe error codes:
+
+| Upstream status | Mapped status | Error code |
+|---|---|---|
+| 429 | 529 | `provider_rate_limited` |
+| 5xx | 502 | `provider_internal_error` |
+| Connection failure | 502 | `provider_connection_error` |
+
+Steering metadata is attached to both successful responses and error paths when a profile is resolved.
+
 ## Core docs
 
 - `steering-exec-plan.md`

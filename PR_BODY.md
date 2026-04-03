@@ -1,61 +1,73 @@
 ## Task
 
-**Task ID:** P1-05
-**Title:** Doctor JSON output and alert thresholds
-**Goal:** Add machine-readable doctor output and severity thresholds so scheduled health checks can gate and alert automatically.
+**Task ID:** P2-01
+**Title:** Provider-backed steering inference adapter
+**Goal:** Replace the stub chat completion path with a real provider adapter that executes steering requests against a live model runtime.
 
 ## Changes
 
-### `scripts/agent-doctor.mjs`
-- Added `--format json` flag producing structured JSON output conforming to `schemas/doctor-report.schema.json`
-- Added configurable `--strict` mode with `--fail-threshold` and `--warn-threshold` for CI/cron gating
-- Added `remediation` field on failing/warning checks with actionable fix instructions
-- Added secret redaction — `EXECUTOR_BOT_TOKEN`, `LANGSMITH_API_KEY`, `LANGCHAIN_API_KEY` values are never printed raw in text or JSON modes
+### `services/steering-inference-api/src/providers/model-adapter.ts` (new)
+- `ModelAdapter` interface with `chatCompletion(request)` method
+- `HttpModelAdapter` implementation using `fetch` against an OpenAI-compatible endpoint
+- `ProviderError` class with `statusCode`, `retryable`, and `providerCode` fields
+- Upstream status mapping: 429→529, 5xx→502, connection failure→502
+- Bearer token read from `INFERENCE_API_KEY` env var; never logged
 
-### `schemas/doctor-report.schema.json`
-- New JSON Schema defining the doctor report structure: `schema_version`, `timestamp`, `summary` (ok/warn/fail/total counts), and `checks` array with `level`, `title`, `message`, and optional `remediation`
+### `services/steering-inference-api/src/routes/chat-completions.ts`
+- Route now accepts a `ModelAdapter` via `ChatCompletionsRouterOptions`
+- When adapter is present, delegates to provider instead of returning stub text
+- Provider responses are forwarded with the original OpenAI-compatible shape
+- `ProviderError` instances map to structured 5xx responses with `retryable` flag
+- Unknown errors map to 500 with `internal_error` code
+- Steering metadata attached to both success and error paths when profile resolves
+- Stub fallback preserved for backward compatibility (no adapter injected)
 
-### `scripts/tests/agent-doctor-json.test.mjs`
-- 8 tests validating JSON schema shape, summary count arithmetic, remediation presence, secret redaction in both JSON and text modes, and strict threshold exit behavior
+### `services/steering-inference-api/src/app.ts`
+- `createApp` accepts optional `AppOptions` with `adapter` field
+- Backward compatible — passing a `ProfileRegistry` directly still works
+
+### `services/steering-inference-api/tests/chat-completions.test.ts`
+- 14 new tests covering provider adapter integration and error handling
+- Mock adapter using `vi.fn()` for deterministic tests
+- Tests verify: provider response forwarding, steering param forwarding, metadata attachment on success/error, structured 5xx mapping, rate limit handling, connection errors, unknown errors, and that validation/profile errors short-circuit before reaching the adapter
+
+### `services/steering-inference-api/package.json`
+- Renamed package from `steering-guardrails` to `steering-inference-api` to match the verify filter
 
 ### `README.md`
-- Documented `--format json`, `--strict`, `--fail-threshold`, and `--warn-threshold` flags
+- Added Steering Inference API section documenting the provider adapter, environment variables, and error mapping table
 
 ## Verify Command Output
 
 ```
-$ node --test scripts/tests/agent-doctor-json.test.mjs
+$ pnpm test --filter steering-inference-api
 
-▶ doctor --format json
-  ✔ outputs valid JSON matching the doctor-report schema (98ms)
-  ✔ includes remediation on failing checks (95ms)
-  ✔ schema file exists and is valid JSON Schema (0ms)
-✔ doctor --format json (195ms)
-▶ secret redaction
-  ✔ never prints raw secret values in JSON mode (91ms)
-  ✔ never prints raw secret values in text mode (96ms)
-✔ secret redaction (187ms)
-▶ --strict thresholds
-  ✔ exits non-zero in strict mode when failures meet default threshold (106ms)
-  ✔ exits non-zero in strict mode when warnings meet --warn-threshold (89ms)
-  ✔ exits zero when thresholds are not breached (92ms)
-✔ --strict thresholds (288ms)
+> steering-inference-api@0.0.1 test
+> vitest run
 
-tests 8 | pass 8 | fail 0
+ RUN  v3.2.4
+
+ ✓ tests/guardrails.test.ts (19 tests) 5ms
+ ✓ tests/chat-completions.test.ts (47 tests) 51ms
+
+ Test Files  2 passed (2)
+      Tests  66 passed (66)
+   Start at  01:16:38
+   Duration  520ms
 ```
 
 ## Definition of Done
 
-- [x] Doctor supports `--format json` with a stable schema
-- [x] Doctor supports `--strict` thresholds suitable for CI and cron alerting
-- [x] Tests validate schema shape and secret-redaction behavior
+- [x] Chat completions route calls a provider adapter instead of returning stub text
+- [x] Steering metadata is attached to successful responses and error paths remain deterministic
+- [x] Provider failures map to structured 5xx responses with retry-safe error codes
 
 ## Constraints
 
-- [x] JSON output includes summary counts, per-check detail, and recommended remediation actions
-- [x] Never prints raw secret values in text or JSON modes
-- [x] Strict mode returns non-zero exit for configured failure thresholds
+- [x] Preserve OpenAI-compatible request and response shape
+- [x] Do not log raw prompts or secret tokens in runtime logs
+- [x] Keep deterministic unit tests by mocking provider calls
 
 ## Rollback Note
 
-If JSON or strict mode causes false alarms, disable strict gating and continue using text-mode doctor checks until thresholds are recalibrated.
+If live adapter behavior is unstable, switch routing back to the deterministic stub path behind a feature flag while keeping metadata validation enabled. The stub fallback is preserved — passing no adapter to `createApp()` or `createChatCompletionsRouter()` returns the original stub behavior.
