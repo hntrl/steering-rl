@@ -33,8 +33,12 @@ describe("isTaskBranch", () => {
     assert.equal(isTaskBranch("agent/P2-01"), true);
   });
 
-  it("rejects agent/P3-01", () => {
-    assert.equal(isTaskBranch("agent/P3-01"), false);
+  it("accepts agent/P3-01", () => {
+    assert.equal(isTaskBranch("agent/P3-01"), true);
+  });
+
+  it("rejects agent/P4-01", () => {
+    assert.equal(isTaskBranch("agent/P4-01"), false);
   });
 
   it("rejects feature/something", () => {
@@ -86,15 +90,18 @@ describe("listMergedTaskBranches", () => {
       { headRefName: "agent/P0-01", number: 10, mergedAt: "2024-01-01T00:00:00Z" },
       { headRefName: "agent/P1-05", number: 20, mergedAt: "2024-01-02T00:00:00Z" },
       { headRefName: "agent/P2-03", number: 30, mergedAt: "2024-01-03T00:00:00Z" },
+      { headRefName: "agent/P3-04", number: 40, mergedAt: "2024-01-04T00:00:00Z" },
     ];
     const result = listMergedTaskBranches(prs);
-    assert.equal(result.length, 3);
+    assert.equal(result.length, 4);
     assert.equal(result[0].branch, "agent/P0-01");
     assert.equal(result[0].prNumber, 10);
     assert.equal(result[1].branch, "agent/P1-05");
     assert.equal(result[1].prNumber, 20);
     assert.equal(result[2].branch, "agent/P2-03");
     assert.equal(result[2].prNumber, 30);
+    assert.equal(result[3].branch, "agent/P3-04");
+    assert.equal(result[3].prNumber, 40);
   });
 
   it("filters out non-task branches", () => {
@@ -189,10 +196,11 @@ describe("deleteMergedBranches", () => {
       { headRefName: "agent/P0-01", number: 10, mergedAt: "2024-01-01T00:00:00Z" },
       { headRefName: "agent/P1-05", number: 20, mergedAt: "2024-01-02T00:00:00Z" },
       { headRefName: "agent/P2-03", number: 21, mergedAt: "2024-01-02T12:00:00Z" },
+      { headRefName: "agent/P3-04", number: 22, mergedAt: "2024-01-02T13:00:00Z" },
       { headRefName: "feature/skip", number: 30, mergedAt: "2024-01-03T00:00:00Z" },
     ];
     const results = deleteMergedBranches("owner/repo", prs, { dryRun: true });
-    assert.equal(results.length, 3);
+    assert.equal(results.length, 4);
     for (const r of results) {
       assert.equal(r.deleted, false);
       assert.equal(r.dryRun, true);
@@ -203,6 +211,8 @@ describe("deleteMergedBranches", () => {
     assert.equal(results[1].prNumber, 20);
     assert.equal(results[2].branch, "agent/P2-03");
     assert.equal(results[2].prNumber, 21);
+    assert.equal(results[3].branch, "agent/P3-04");
+    assert.equal(results[3].prNumber, 22);
   });
 
   it("skips non-task branches", () => {

@@ -1,0 +1,34 @@
+{
+  "task_id": "P3-04",
+  "title": "Production SLO dashboard and alert tuning",
+  "goal": "Define SLOs and ship alerting dashboards for degeneration, correctness, latency, and cost with low false-positive rates.",
+  "inputs": [
+    "agent-instrumentation-spec.md",
+    "services/telemetry/src",
+    "services/tracing/src"
+  ],
+  "expected_outputs": [
+    "dashboards/production/slo-dashboard.json",
+    "dashboards/production/alert-rules.yaml",
+    "docs/incident-runbook.md",
+    "README.md"
+  ],
+  "constraints": [
+    "Alert thresholds must map directly to rollout rollback thresholds.",
+    "Runbook must include on-call triage and rollback drill steps.",
+    "Dashboard queries must avoid exposing sensitive user content."
+  ],
+  "verify_command": "pnpm test --filter telemetry && pnpm test --filter tracing",
+  "definition_of_done": [
+    "SLO dashboard includes correctness, coherence, degeneration, latency, and cost panels.",
+    "Alert pack defines warning and critical severities with documented responders.",
+    "Incident runbook includes a validated rollback drill checklist."
+  ],
+  "rollback_note": "If alert tuning is noisy, revert to conservative thresholds and keep dashboards in observe-only mode until calibrated.",
+  "dependencies": [
+    "P3-01"
+  ],
+  "priority": "P3",
+  "track": "feedback-loop",
+  "risk_level": "medium"
+}

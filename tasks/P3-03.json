@@ -1,0 +1,34 @@
+{
+  "task_id": "P3-03",
+  "title": "Promotion governance and approval workflow",
+  "goal": "Require explicit human approval with evidence bundles before production promotion canary handoff.",
+  "inputs": [
+    "jobs/nightly/promote.ts",
+    "artifacts/releases/README.md",
+    "services/eval-orchestrator/src/gate-checker.ts"
+  ],
+  "expected_outputs": [
+    "jobs/nightly/approval-gate.ts",
+    "jobs/nightly/tests/approval-gate.test.ts",
+    "artifacts/releases/promotion-decision.schema.json",
+    "README.md"
+  ],
+  "constraints": [
+    "Promotion must fail closed when approval record is missing or invalid.",
+    "Evidence bundle must include experiment decision, parity report, and rollback plan.",
+    "Approval records must be immutable and timestamped."
+  ],
+  "verify_command": "node --test jobs/nightly/tests/approval-gate.test.ts",
+  "definition_of_done": [
+    "Nightly promotion flow blocks without approved decision artifact.",
+    "Approval artifact schema validates required evidence references.",
+    "Audit trail links each promotion to an approver identity and timestamp."
+  ],
+  "rollback_note": "If approval gate blocks healthy releases unexpectedly, switch to advisory mode while preserving immutable decision artifacts.",
+  "dependencies": [
+    "P3-02"
+  ],
+  "priority": "P3",
+  "track": "control-plane",
+  "risk_level": "medium"
+}
