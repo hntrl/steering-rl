@@ -2,6 +2,17 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { dedup, sanitizeMetadata } from "./dedup.js";
 import type { TraceRecord, EvalExample } from "./dedup.js";
+import {
+  fetchLangSmithTraces,
+  projectNameForEnv,
+  defaultTimeWindow,
+} from "./langsmith-source.js";
+import type { LangSmithFetchOptions, FetchFn } from "./langsmith-source.js";
+
+/**
+ * Supported trace source types.
+ */
+export type TraceSource = "inline" | "langsmith";
 
 /**
  * Configuration for the trace-mining pipeline.
@@ -11,6 +22,21 @@ export interface PipelineConfig {
   source: string;
   outputDir: string;
   dryRun: boolean;
+}
+
+/**
+ * Extended pipeline config supporting LangSmith source.
+ */
+export interface PipelineRunOptions extends PipelineConfig {
+  traceSource?: TraceSource;
+  environment?: string;
+  startTime?: string;
+  endTime?: string;
+  pageSize?: number;
+  maxTraces?: number;
+  langsmithApiUrl?: string;
+  langsmithApiKey?: string;
+  fetchFn?: FetchFn;
 }
 
 /**
@@ -158,4 +184,88 @@ export function runPipeline(
     changelog,
     artifacts: { datasetPath, changelogPath },
   };
+}
+
+/**
+ * Runs the pipeline with source selection.
+ *
+ * When traceSource is "langsmith", fetches traces from a LangSmith project
+ * using bounded time windows and pagination. Otherwise falls back to
+ * the provided inline traces array.
+ */
+export async function runPipelineFromSource(
+  options: PipelineRunOptions,
+  inlineTraces?: TraceRecord[]
+): Promise<PipelineResult> {
+  const source = options.traceSource ?? "inline";
+
+  if (source === "langsmith") {
+    const env = options.environment ?? "prod";
+    const tw = defaultTimeWindow();
+    const fetchOptions: LangSmithFetchOptions = {
+      project: projectNameForEnv(env),
+      environment: env,
+      startTime: options.startTime ?? tw.startTime,
+      endTime: options.endTime ?? tw.endTime,
+      pageSize: options.pageSize,
+      maxTraces: options.maxTraces,
+      apiUrl: options.langsmithApiUrl,
+      apiKey: options.langsmithApiKey,
+    };
+
+    console.log(`[langsmith] Fetching traces from project: ${fetchOptions.project}`);
+    console.log(`[langsmith] Time window: ${fetchOptions.startTime} → ${fetchOptions.endTime}`);
+
+    let result;
+    try {
+      result = await fetchLangSmithTraces(fetchOptions, options.fetchFn);
+    } catch (err) {
+      if (options.dryRun) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`[langsmith] [dry-run] Could not fetch traces: ${msg}`);
+        console.log("[langsmith] [dry-run] Pipeline validation complete — no mutations performed.");
+        return {
+          datasetName: datasetName(options.suite, options.source),
+          examplesCount: 0,
+          clustersCount: 0,
+          dedupedFromTotal: 0,
+          changelog: `Dry run — could not fetch traces: ${msg}`,
+          artifacts: null,
+        };
+      }
+      throw err;
+    }
+
+    console.log(`[langsmith] Fetched ${result.totalFetched} failure traces (${result.pagesRead} pages, truncated: ${result.truncated})`);
+
+    if (result.traces.length === 0) {
+      console.log("[langsmith] No failure traces found in time window.");
+      return {
+        datasetName: datasetName(options.suite, options.source),
+        examplesCount: 0,
+        clustersCount: 0,
+        dedupedFromTotal: 0,
+        changelog: "No traces found in the specified time window.",
+        artifacts: null,
+      };
+    }
+
+    return runPipeline(result.traces, {
+      suite: options.suite,
+      source: options.source,
+      outputDir: options.outputDir,
+      dryRun: options.dryRun,
+    });
+  }
+
+  if (!inlineTraces || inlineTraces.length === 0) {
+    throw new Error("No inline traces provided. Use --source langsmith to fetch from LangSmith.");
+  }
+
+  return runPipeline(inlineTraces, {
+    suite: options.suite,
+    source: options.source,
+    outputDir: options.outputDir,
+    dryRun: options.dryRun,
+  });
 }
