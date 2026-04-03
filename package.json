@@ -7,6 +7,16 @@
   "scripts": {
     "tasks:validate": "node scripts/validate-task-contracts.mjs",
     "tasks:issues": "node scripts/create-gh-issues.mjs",
-    "verify": "pnpm tasks:validate"
+    "verify:structure": "node scripts/verify-structure.mjs",
+    "verify:json": "node scripts/verify-json.mjs",
+    "verify:tasks": "pnpm tasks:validate",
+    "contracts:lint": "redocly lint contracts/openapi/inference.yaml && node scripts/contracts-lint.mjs",
+    "contracts:test": "node scripts/contracts-test.mjs",
+    "verify": "pnpm verify:structure && pnpm verify:json && pnpm verify:tasks && pnpm contracts:lint && pnpm contracts:test"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^1.34.2",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
   }
 }

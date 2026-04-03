@@ -1,0 +1,23 @@
+{
+  "env": "prod",
+  "agent": "deepagentsjs",
+  "base_model": "gemma-3-27b-it",
+  "base_model_revision": "2026-03-15",
+  "profile_id": "steer-gemma3-default-v12",
+  "vector_bundle_id": "vec-bundle-2026-04-01-rc2",
+  "layers": [23, 29, 35, 41, 47],
+  "fallback_layer": 41,
+  "preset": "medium",
+  "multiplier": 0.22,
+  "concept": "expense-management",
+  "request_id": "req_01HV000000000000000000",
+  "thread_id": "thread_01HV000000000000000000",
+  "dataset_version": "steer-core-golden-v20260402",
+  "git_sha": "abc1234",
+  "judge_bundle": "judge-v4",
+  "latency_ms": 1720,
+  "input_tokens": 1034,
+  "output_tokens": 402,
+  "degenerate": false,
+  "language_shift": false
+}

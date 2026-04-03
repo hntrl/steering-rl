@@ -1,0 +1,94 @@
+{
+  "suite": "edge",
+  "description": "Difficult prompts and known failure patterns for steering robustness.",
+  "version": "v20260402",
+  "cases": [
+    {
+      "id": "edge-001",
+      "description": "Very long input prompt under strong steering",
+      "input": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Write a detailed 2000-word analysis of the socioeconomic factors that contributed to the industrial revolution, covering technology, labor, capital, trade policy, and agricultural changes. Be thorough and structured."
+          }
+        ],
+        "steering": {
+          "concept": "conciseness",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "coherence_min": 0.65,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "edge-002",
+      "description": "Multi-turn conversation with mid-conversation steering change",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Tell me about machine learning." },
+          { "role": "assistant", "content": "Machine learning is a subset of artificial intelligence..." },
+          { "role": "user", "content": "Now explain it more creatively." }
+        ],
+        "steering": {
+          "concept": "creativity",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "concept_adherence_min": 0.6,
+        "coherence_min": 0.7,
+        "degenerate": false,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "edge-003",
+      "description": "Empty steering concept field should fallback gracefully",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "What is 2 + 2?" }
+        ],
+        "steering": {
+          "concept": "",
+          "preset": "medium",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "coherence_min": 0.9,
+        "degenerate": false,
+        "language_shift": false,
+        "should_fallback_to_baseline": true
+      }
+    },
+    {
+      "id": "edge-004",
+      "description": "Contradictory steering concept and prompt intent",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Write a very formal legal brief." }
+        ],
+        "steering": {
+          "concept": "humor",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "coherence_min": 0.6,
+        "degenerate": false,
+        "language_shift": false
+      }
+    }
+  ]
+}
