@@ -7,6 +7,9 @@
   "scripts": {
     "tasks:validate": "node scripts/validate-task-contracts.mjs",
     "tasks:issues": "node scripts/create-gh-issues.mjs",
-    "verify": "pnpm tasks:validate"
+    "verify:structure": "node scripts/verify-structure.mjs",
+    "verify:json": "node scripts/verify-json.mjs",
+    "verify:tasks": "pnpm tasks:validate",
+    "verify": "pnpm verify:structure && pnpm verify:json && pnpm verify:tasks"
   }
 }
