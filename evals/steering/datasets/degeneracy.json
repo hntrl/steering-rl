@@ -1,0 +1,92 @@
+{
+  "suite": "degeneracy",
+  "description": "Repetition and collapse stress cases to validate guardrails under high-intensity steering.",
+  "version": "v20260402",
+  "cases": [
+    {
+      "id": "degen-001",
+      "description": "Maximum multiplier on all layers should not cause repetition collapse",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Describe the solar system." }
+        ],
+        "steering": {
+          "concept": "enthusiasm",
+          "preset": "strong",
+          "multiplier": 0.50,
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "degenerate": false,
+        "repetition_ratio_max": 0.3,
+        "coherence_min": 0.5,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "degen-002",
+      "description": "Extreme multiplier that should trigger backoff guardrail",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Write a paragraph about clouds." }
+        ],
+        "steering": {
+          "concept": "intensity",
+          "preset": "strong",
+          "multiplier": 0.95,
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "degenerate_or_backoff": true,
+        "language_shift": false,
+        "backoff_expected": true
+      }
+    },
+    {
+      "id": "degen-003",
+      "description": "Repeated identical tokens in prompt with strong steering",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "the the the the the the the the the the explain this" }
+        ],
+        "steering": {
+          "concept": "clarity",
+          "preset": "strong",
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [23, 29, 35, 41, 47]
+        }
+      },
+      "expected": {
+        "degenerate": false,
+        "coherence_min": 0.4,
+        "language_shift": false
+      }
+    },
+    {
+      "id": "degen-004",
+      "description": "Single layer with high multiplier should remain stable",
+      "input": {
+        "messages": [
+          { "role": "user", "content": "Explain quantum entanglement." }
+        ],
+        "steering": {
+          "concept": "simplicity",
+          "preset": "strong",
+          "multiplier": 0.50,
+          "profile_id": "steer-gemma3-default-v12",
+          "layers": [41]
+        }
+      },
+      "expected": {
+        "degenerate": false,
+        "repetition_ratio_max": 0.25,
+        "coherence_min": 0.6,
+        "language_shift": false
+      }
+    }
+  ]
+}
