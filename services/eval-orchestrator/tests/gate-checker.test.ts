@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkHardGates, computeDecision } from "../src/gate-checker.js";
+import { checkHardGates, computeDecision, validateMetricsPresent } from "../src/gate-checker.js";
 import { computeRankScore, computeRankComponents } from "../src/score.js";
 import { DEFAULT_RANK_WEIGHTS, DEFAULT_HARD_GATE_THRESHOLDS } from "../src/defaults.js";
 import type {
@@ -525,5 +525,93 @@ describe("decision output validates against experiment decision schema", () => {
     const { valid, errors } = validateAgainstSchema(decision);
     expect(errors).toEqual([]);
     expect(valid).toBe(true);
+  });
+});
+
+describe("validateMetricsPresent", () => {
+  it("passes when all required metrics are present", () => {
+    const metrics = makeMetrics();
+    const result = validateMetricsPresent(metrics as unknown as Record<string, unknown>);
+    expect(result.valid).toBe(true);
+    expect(result.missing).toHaveLength(0);
+  });
+
+  it("fails closed when a required metric is missing", () => {
+    const metrics: Record<string, unknown> = { correctness: 0.9 };
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("coherence");
+  });
+
+  it("fails closed on null value", () => {
+    const metrics: Record<string, unknown> = {
+      correctness: null,
+      coherence: 0.9,
+    };
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("correctness");
+  });
+
+  it("fails closed on NaN value", () => {
+    const metrics: Record<string, unknown> = {
+      correctness: NaN,
+      coherence: 0.9,
+    };
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("correctness");
+  });
+
+  it("fails closed on undefined value", () => {
+    const metrics: Record<string, unknown> = {
+      correctness: undefined,
+      coherence: 0.9,
+    };
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("correctness");
+  });
+
+  it("fails closed on non-numeric value", () => {
+    const metrics: Record<string, unknown> = {
+      correctness: "high",
+      coherence: 0.9,
+    };
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toContain("correctness");
+  });
+
+  it("reports all missing fields, not just the first", () => {
+    const metrics: Record<string, unknown> = {};
+    const result = validateMetricsPresent(metrics, [
+      "correctness",
+      "coherence",
+      "degenerate_rate",
+    ]);
+    expect(result.valid).toBe(false);
+    expect(result.missing).toHaveLength(3);
+  });
+
+  it("uses default required keys when none specified", () => {
+    const metrics = makeMetrics();
+    const result = validateMetricsPresent(metrics as unknown as Record<string, unknown>);
+    expect(result.valid).toBe(true);
   });
 });

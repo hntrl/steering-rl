@@ -1,84 +1,73 @@
 ## Task
 
-**Task ID:** P2-02
-**Title:** Gemma 4 Stage C multi-layer calibration sweep
-**Goal:** Implement Stage C jobs that combine top Stage B layers into sparse multi-layer profiles and calibrate preset multipliers.
+**Task ID:** P2-03
+**Title:** Gemma 4 Stage D champion-challenger bake-off
+**Goal:** Run Stage D head-to-head experiments and emit machine-readable promotion decisions for Gemma 4 challengers versus current champion.
 
 ## Changes
 
-### `jobs/sweeps/gemma4-stage-c.ts`
-- Stage C multi-layer calibration sweep job
-- Extracts top-K unique layers from Stage B challenger candidates
-- Generates all k-combinations of sizes 3, 4, 5 from winner layers
-- Evaluates each combination across low/medium/strong preset multiplier ranges
-- Applies hard gates (degenerate_rate, coherence, correctness, language_stability, latency)
-- Calibrates preset tables by selecting best multiplier per preset level per combination
-- Ranks candidates by composite rank_score and emits top-10 with full profile bundles
-- Profile bundles conform to the `contracts/schema/profile.json` schema
-- Deterministic: uses Mulberry32 PRNG seeded by config seed + layer hash + multiplier
-- CLI entry point reads Stage A/B artifacts, runs sweep, writes `gemma4-stage-c-result.json`
+### New files
 
-### `jobs/sweeps/tests/gemma4-stage-c.test.ts`
-- 16 tests covering:
-  - Config construction with seed control and model metadata
-  - Config overrides and default values
-  - `extractTopLayers` deduplication, sorting, and top-K limiting
-  - Reproducibility (same seed + config = identical metrics and candidates)
-  - Ranked multi-layer candidate generation
-  - Preset table completeness and ordering (low < medium < strong)
-  - Multi-layer sets (>= 3 layers, sorted ascending)
-  - Profile bundle field validation
-  - Output includes model revision, dataset version, selected layer sets
-  - JSON-serializability for gate checker ingestion
-  - Combination and hard gate tracking counters
-  - Stage A/B reference linkage
-  - Candidate layers sourced exclusively from Stage B winners
+- **`jobs/sweeps/gemma4-stage-d.ts`** — Stage D champion-challenger sweep. Takes Stage C multi-layer candidates, runs each head-to-head against the champion, applies hard gates first (fail closed on missing metrics), then computes weighted rank scores to emit `promote` or `hold` decisions. Decision artifacts include experiment IDs, evidence bundle IDs, hard-gate reasons, rank component breakdowns, and scores.
+- **`jobs/sweeps/tests/gemma4-stage-d.test.ts`** — 32 tests covering config construction, fail-closed metric validation, hard gate evaluation, rank scoring, and full bake-off execution with reproducibility checks.
+- **`artifacts/sweeps/gemma4-stage-d-decision.json`** — Generated decision artifact with all required fields.
 
-### `package.json`
-- Added `sweep:gemma4:stageC` script (runs Stage A → B → C pipeline + Stage C tests)
+### Modified files
 
-### `artifacts/sweeps/README.md`
-- Added Stage C documentation (sweep axes, hard gates, preset calibration, output format)
-- Updated artifact table and gate checker compatibility section
+- **`services/eval-orchestrator/src/gate-checker.ts`** — Added `validateMetricsPresent()` function that fails closed when required metrics are missing (null, undefined, NaN, or non-numeric).
+- **`services/eval-orchestrator/src/types.ts`** — Added `MetricsValidationResult` interface.
+- **`services/eval-orchestrator/tests/gate-checker.test.ts`** — Added 8 tests for `validateMetricsPresent` covering missing, null, NaN, undefined, and non-numeric values.
+- **`package.json`** — Added `sweep:gemma4:stageD` script.
 
 ## Verify Command Output
 
 ```
-$ pnpm run sweep:gemma4:stageC
+$ pnpm run sweep:gemma4:stageD
 
 [Stage A] PASS — baseline complete.
-[Stage B] Configurations tested: 228
-[Stage B] Passed hard gates: 6
-[Stage B] PASS — challenger candidates ready for Stage C.
-[Stage C] Model: gemma-4-27b-it (rev 2026-06-01)
-[Stage C] Dataset: steer-core-golden-v20260601
-[Stage C] Seed: 20260601
-[Stage C] Stage B candidates: 6
-[Stage C] Top-K layers: 6
-[Stage C] Combination sizes: 3, 4, 5
-[Stage C] Combinations tested: 9
-[Stage C] Passed hard gates: 8
-[Stage C] Multi-layer candidates: 1
-[Stage C] Top multi-layer candidates:
-  #1 layers=[35,41,47] preset_table={low:0.12,med:0.26,strong:0.35}
-     rank_score=0.8362 coherence=0.9163 adherence=0.7227 degen=0
-[Stage C] PASS — multi-layer candidates ready for Stage D.
+[Stage B] PASS — 6 challenger candidates ready for Stage C.
+[Stage C] PASS — 1 multi-layer candidate ready for Stage D.
+[Stage D] Model: gemma-4-27b-it (rev 2026-06-01)
+[Stage D] Dataset: steer-core-golden-v20260601
+[Stage D] Seed: 20260601
+[Stage D] Suite: core
+[Stage D] Stage C candidates: 1
+[Stage D] Champion: steer-gemma4-baseline-champion
+[Stage D] Total challengers: 1
+[Stage D] Passed hard gates: 1
+[Stage D] Promoted: 0
+[Stage D] Held: 1
+[Stage D] Decisions:
+  HOLD steer-gemma4-L35-L41-L47-multilayer-candidate
+    rank_score=0.8283 champion_rank_score=0.8580 gates_passed=true
+[Stage D] PASS — promotion decisions emitted.
 
-16 tests: 16 passed, 0 failed
+Stage D tests: 32 passed, 0 failed
+
+$ pnpm test --filter experiment-gates
+
+gate-checker.test.ts: 40 tests passed (32 existing + 8 new validateMetricsPresent)
+
+$ pnpm verify
+
+Structure: verified
+JSON: 24 files validated
+Tasks: 23 contracts validated
+Contracts: lint passed, 6 schema tests passed
 ```
 
 ## Definition of Done
 
-- [x] Stage C produces ranked multi-layer candidates with preset tables
-- [x] Output artifact includes model revision, dataset version, and selected layer sets
-- [x] Stage C run is reproducible from committed config and seed values
+- [x] Stage D produces explicit promote or hold decision artifacts
+- [x] Decision output includes hard-gate reasons and rank component breakdown
+- [x] Champion and challenger comparisons are reproducible from stored artifacts
 
 ## Constraints
 
-- [x] Use deterministic seeds and persist config used for each candidate
-- [x] Build multi-layer candidates from Stage B passing layers only
-- [x] Emit profile bundles consumable by Stage D and canary routing
+- [x] Apply hard gates before weighted rank comparisons
+- [x] Record evidence bundle IDs and experiment IDs in decision artifacts
+- [x] Fail closed when required metrics are missing
 
 ## Rollback Note
 
-If Stage C quality regresses, freeze Stage B winners as temporary challengers and defer multi-layer promotion until calibration is corrected.
+If Stage D decisioning is inconsistent, lock promotion decisions to hold and require manual review using raw experiment metrics.

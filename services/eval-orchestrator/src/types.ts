@@ -67,3 +67,8 @@ export interface HardGateThresholds {
   max_latency_multiplier: number;
   max_safety_critical_violations: number;
 }
+
+export interface MetricsValidationResult {
+  valid: boolean;
+  missing: string[];
+}
