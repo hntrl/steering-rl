@@ -14,3 +14,12 @@ export {
   type MetricSample,
   type RollbackDecision,
 } from "./rollback-policy.js";
+
+export {
+  CanaryController,
+  DEFAULT_CONTROLLER_CONFIG,
+  type CanaryControllerConfig,
+  type ControllerEvent,
+  type ControllerEventType,
+  type ControllerEventListener,
+} from "./controller.js";

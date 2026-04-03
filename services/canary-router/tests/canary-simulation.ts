@@ -1,11 +1,12 @@
 /**
  * Canary routing simulation — validates end-to-end behavior of the canary
- * router through a simulated multi-phase rollout with metric recording
- * and automatic rollback.
+ * router and controller through a simulated multi-phase rollout with metric
+ * recording and automatic rollback.
  */
 
 import { CanaryRouter } from "../src/router.js";
 import { RollbackPolicy } from "../src/rollback-policy.js";
+import { CanaryController, ControllerEvent } from "../src/controller.js";
 
 interface SimulationResult {
   phase: number;
@@ -172,18 +173,136 @@ function runSimulation(): void {
   console.log("✓ Kill switch forces baseline no-steering path");
   console.log("✓ Recovery after rollback reset works");
 
-  const allPassed =
+  const routerPassed =
     rollbackDecision.shouldRollback &&
     rollbackRouteCount === 100 &&
     !canAdvance &&
     killSwitchCount === 100 &&
     recoveryDecision.isChallenger;
 
+  // -----------------------------------------------------------------------
+  // Scenario 5: CanaryController — full lifecycle with events
+  // -----------------------------------------------------------------------
+  console.log("\n--- Scenario 5: CanaryController — phase progression with events ---");
+  const observationMs = 5 * 60 * 1000;
+  const ctrl = new CanaryController({
+    minPhaseObservationMs: observationMs,
+    autoAdvance: true,
+    router: {
+      championProfileId: "steer-gemma3-default-v12",
+      challengerProfileId: "steer-gemma4-candidate-v3",
+      rollbackPolicy: {
+        windowMs: 30 * 60 * 1000,
+        thresholds: [
+          { metric: "degenerate_rate", maxValue: 0.03 },
+          { metric: "error_rate", maxValue: 0.05 },
+          { metric: "p95_latency_ms", maxValue: 5000 },
+        ],
+      },
+    },
+  });
+
+  const ctrlEvents: ControllerEvent[] = [];
+  ctrl.on((e) => ctrlEvents.push(e));
+
+  // Phase 10% → 50% via auto-advance
+  ctrl.setPhaseEnteredAt(baseTime);
+  ctrl.recordMetric({ metric: "degenerate_rate", value: 0.01, timestamp: baseTime });
+  ctrl.recordMetric({ metric: "error_rate", value: 0.02, timestamp: baseTime });
+  ctrl.recordMetric({ metric: "p95_latency_ms", value: 2000, timestamp: baseTime });
+  const autoAdvanced1 = ctrl.tryAutoAdvance(baseTime + observationMs);
+  console.log(`  Auto-advance 10% → 50%: ${autoAdvanced1} (phase=${ctrl.getCurrentPhase()}%) ✓`);
+
+  // Phase 50% → 100% via auto-advance
+  ctrl.recordMetric({ metric: "degenerate_rate", value: 0.015, timestamp: baseTime + observationMs });
+  const autoAdvanced2 = ctrl.tryAutoAdvance(baseTime + observationMs * 2);
+  console.log(`  Auto-advance 50% → 100%: ${autoAdvanced2} (phase=${ctrl.getCurrentPhase()}%) ✓`);
+
+  // Verify events
+  const phaseAdvances = ctrlEvents.filter((e) => e.type === "phase_advance");
+  const rolloutComplete = ctrlEvents.find((e) => e.type === "rollout_complete");
+  console.log(`  Phase advance events: ${phaseAdvances.length} ✓`);
+  console.log(`  Rollout complete event: ${rolloutComplete !== undefined} ✓`);
+
+  // -----------------------------------------------------------------------
+  // Scenario 6: Controller rollback with latency measurement
+  // -----------------------------------------------------------------------
+  console.log("\n--- Scenario 6: Controller rollback + latency SLA ---");
+  const ctrl2 = new CanaryController({
+    router: {
+      championProfileId: "steer-gemma3-default-v12",
+      challengerProfileId: "steer-gemma4-candidate-v3",
+      rollbackPolicy: {
+        windowMs: 30 * 60 * 1000,
+        thresholds: [{ metric: "degenerate_rate", maxValue: 0.03 }],
+      },
+    },
+  });
+  const ctrl2Events: ControllerEvent[] = [];
+  ctrl2.on((e) => ctrl2Events.push(e));
+
+  // Populate with samples
+  for (let i = 0; i < 200; i++) {
+    ctrl2.recordMetric({ metric: "degenerate_rate", value: 0.08, timestamp: baseTime + i * 1000 });
+  }
+
+  const ctrlRollback = ctrl2.evaluateRollback(baseTime + 200_000);
+  console.log(`  Rollback triggered: ${ctrlRollback.shouldRollback} (latency=${ctrlRollback.evaluationLatencyMs.toFixed(3)}ms) ✓`);
+  console.log(`  Latency within SLA (<5ms): ${ctrlRollback.evaluationLatencyMs < 5} ✓`);
+
+  const ctrlRollbackEvent = ctrl2Events.find((e) => e.type === "rollback_triggered");
+  console.log(`  Rollback event emitted: ${ctrlRollbackEvent !== undefined} ✓`);
+
+  // -----------------------------------------------------------------------
+  // Scenario 7: Controller runtime config update
+  // -----------------------------------------------------------------------
+  console.log("\n--- Scenario 7: Runtime config update ---");
+  const ctrl3 = new CanaryController({
+    router: { championProfileId: "old-champ" },
+  });
+  const ctrl3Events: ControllerEvent[] = [];
+  ctrl3.on((e) => ctrl3Events.push(e));
+
+  ctrl3.updateConfig({ router: { championProfileId: "new-champ" } }, baseTime);
+  const newCfg = ctrl3.getConfig();
+  console.log(`  Config updated: championProfileId=${newCfg.routerConfig.championProfileId} ✓`);
+  const configEvent = ctrl3Events.find((e) => e.type === "config_updated");
+  console.log(`  Config event emitted: ${configEvent !== undefined} ✓`);
+
+  // -----------------------------------------------------------------------
+  // Summary
+  // -----------------------------------------------------------------------
+  console.log("\n=== Simulation Summary ===");
+  console.log("✓ 10/50/100 rollout phases supported (router)");
+  console.log("✓ Auto rollback triggers on threshold breach (router)");
+  console.log("✓ Kill switch forces baseline no-steering path (router)");
+  console.log("✓ Recovery after rollback reset works (router)");
+  console.log("✓ Controller auto-advance 10 → 50 → 100 (controller)");
+  console.log("✓ Controller emits machine-readable events (controller)");
+  console.log("✓ Rollback decision latency within SLA (controller)");
+  console.log("✓ Runtime config update without redeploy (controller)");
+
+  const controllerPassed =
+    autoAdvanced1 &&
+    autoAdvanced2 &&
+    ctrl.getCurrentPhase() === 100 &&
+    phaseAdvances.length === 2 &&
+    rolloutComplete !== undefined &&
+    ctrlRollback.shouldRollback &&
+    ctrlRollback.evaluationLatencyMs < 5 &&
+    ctrlRollbackEvent !== undefined &&
+    newCfg.routerConfig.championProfileId === "new-champ" &&
+    configEvent !== undefined;
+
+  const allPassed = routerPassed && controllerPassed;
+
   if (allPassed) {
     console.log("\n✅ All simulation scenarios PASSED");
     process.exit(0);
   } else {
     console.error("\n❌ Some simulation scenarios FAILED");
+    if (!routerPassed) console.error("  Router scenarios failed");
+    if (!controllerPassed) console.error("  Controller scenarios failed");
     process.exit(1);
   }
 }
